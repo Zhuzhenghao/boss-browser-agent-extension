@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Boss Search Agent</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="panel hero">
+        <p class="eyebrow">Midscene Bridge</p>
+        <h1>未读消息筛选 Agent</h1>
+        <p class="desc">
+          先确保 Midscene Chrome 扩展已经进入 Bridge Mode Listening，并把要操作的标签页切到前台。
+        </p>
+
+        <label class="field">
+          <span>目标候选人特征</span>
+          <textarea
+            id="targetProfile"
+            rows="8"
+            placeholder="例如：AI 项目经理，5 年以上 ToB 项目交付经验，熟悉大模型/数据产品，有零售或企业数字化背景，能推动跨团队协作。"
+          ></textarea>
+        </label>
+
+        <label class="field">
+          <span>不匹配回复语</span>
+          <textarea
+            id="rejectionMessage"
+            rows="3"
+            placeholder="您的简历很优秀，但是经验不匹配"
+          >您的简历很优秀，但是经验不匹配</textarea>
+        </label>
+
+        <button id="runButton" class="primary-button">执行未读消息筛选 Agent</button>
+
+        <div id="status" class="status-card">等待执行</div>
+        <div id="result" class="result-card" hidden></div>
+      </section>
+    </main>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

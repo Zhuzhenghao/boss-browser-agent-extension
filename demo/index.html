@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Midscene Bridge Demo</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4efe8;
+        --card: rgba(255, 251, 245, 0.94);
+        --text: #221d17;
+        --muted: #746657;
+        --line: #d7c7b6;
+        --accent: #bf5f36;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "SF Pro Text", "PingFang SC", "Hiragino Sans GB", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top, #fff7ea 0%, rgba(255, 247, 234, 0.46) 24%, transparent 54%),
+          linear-gradient(180deg, #f8f2e8 0%, var(--bg) 100%);
+      }
+
+      .wrap {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 40px 20px;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        background: var(--card);
+        border-radius: 24px;
+        padding: 24px;
+        box-shadow: 0 16px 40px rgba(108, 78, 47, 0.1);
+      }
+
+      .eyebrow {
+        margin: 0 0 6px;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      h1,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 28px;
+      }
+
+      .desc {
+        margin-top: 10px;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      textarea {
+        width: 100%;
+        margin-top: 18px;
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        min-height: 160px;
+        resize: vertical;
+        font: inherit;
+        color: var(--text);
+        background: #fffdf9;
+      }
+
+      .actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 16px;
+      }
+
+      button {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 10px 16px;
+        font: inherit;
+        cursor: pointer;
+        background: var(--accent);
+        color: white;
+      }
+
+      button:disabled {
+        opacity: 0.65;
+        cursor: wait;
+      }
+
+      .status {
+        margin-top: 16px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        background: #fff5eb;
+        color: var(--muted);
+        line-height: 1.6;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="card">
+        <p class="eyebrow">Midscene Bridge Demo</p>
+        <h1>桥接模式浏览器执行页</h1>
+        <p class="desc">
+          先把要操作的 Chrome 标签页切到前台，并确保 Midscene Chrome 扩展已经进入 Bridge Mode Listening。
+          然后在下面输入一句自然语言指令，点击执行。
+        </p>
+
+        <textarea id="prompt" placeholder="例如：打开百度，搜索“Midscene”，然后点击第一个结果"></textarea>
+
+        <div class="actions">
+          <button id="runButton">执行 Agent</button>
+        </div>
+
+        <div id="status" class="status">等待执行</div>
+      </section>
+    </main>
+
+    <script>
+      const promptEl = document.getElementById('prompt');
+      const runButton = document.getElementById('runButton');
+      const statusEl = document.getElementById('status');
+
+      runButton.addEventListener('click', async () => {
+        const prompt = promptEl.value.trim();
+        if (!prompt) {
+          statusEl.textContent = '请输入要执行的指令';
+          return;
+        }
+
+        runButton.disabled = true;
+        statusEl.textContent = '正在连接当前 Chrome 标签页并执行...';
+
+        try {
+          const response = await fetch('/api/run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt }),
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) {
+            throw new Error(result.error || '执行失败');
+          }
+          statusEl.textContent = '执行完成';
+        } catch (error) {
+          statusEl.textContent = error instanceof Error ? error.message : String(error);
+        } finally {
+          runButton.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
