@@ -1,16 +1,11 @@
-import fs from 'node:fs/promises';
 import http from 'node:http';
-import path from 'node:path';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { AgentOverChromeBridge } from '@midscene/web/bridge-mode';
-import { runUnreadScreeningAgent } from './unread-screening-agent.js';
+import { runUnreadScreeningAgent } from '../agents/unread-screening-agent.js';
 
 dotenv.config();
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const pagePath = path.join(__dirname, 'index.html');
 const host = '127.0.0.1';
 const port = Number(process.env.BRIDGE_DEMO_PORT || 3322);
 
@@ -26,6 +21,18 @@ let unreadTaskState = {
   latestStep: null,
   error: null,
 };
+
+function recordFatalBridgeError(error) {
+  const message = normalizeBridgeError(error);
+  running = false;
+  mergeUnreadTaskState({
+    running: false,
+    status: 'error',
+    finishedAt: new Date().toISOString(),
+    error: message,
+  });
+  console.error(message);
+}
 
 function resetUnreadTaskState() {
   unreadTaskState = {
@@ -67,18 +74,21 @@ function sendJson(res, statusCode, payload) {
   res.end(JSON.stringify(payload));
 }
 
-function assertEnv(name) {
-  if (!process.env[name]) {
-    throw new Error(`缺少环境变量 ${name}`);
+function normalizeBridgeError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (/no tab is connected/i.test(message)) {
+    return 'Midscene 已连接到扩展，但当前没有绑定可操作的 Chrome 标签页。请先把目标 Boss 页面切到前台，并在 Midscene 扩展里重新连接当前 tab。';
   }
+
+  if (/one client connected/i.test(message)) {
+    return 'Midscene 扩展已连接，但当前桥接状态还没有准备好。请确认扩展已开启 Bridge Mode Listening，并重新连接当前标签页。';
+  }
+
+  return message;
 }
 
-async function runPrompt(prompt) {
-  assertEnv('MIDSCENE_MODEL_API_KEY');
-  assertEnv('MIDSCENE_MODEL_NAME');
-  assertEnv('MIDSCENE_MODEL_BASE_URL');
-  assertEnv('MIDSCENE_MODEL_FAMILY');
-
+async function checkBridgeReady() {
   const agent = new AgentOverChromeBridge({
     allowRemoteAccess: false,
     closeNewTabsAfterDisconnect: false,
@@ -86,9 +96,17 @@ async function runPrompt(prompt) {
 
   try {
     await agent.connectCurrentTab({ forceSameTabNavigation: true });
-    return await agent.aiAct(prompt);
+    return {
+      ok: true,
+      message: 'Bridge 已连接到当前标签页',
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: normalizeBridgeError(error),
+    };
   } finally {
-    await agent.destroy();
+    await agent.destroy().catch(() => {});
   }
 }
 
@@ -117,45 +135,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === 'GET' && req.url === '/') {
-    const html = await fs.readFile(pagePath, 'utf8');
-    setCorsHeaders(res);
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(html);
-    return;
-  }
-
-  if (req.method === 'POST' && req.url === '/api/run') {
-    if (running) {
-      sendJson(res, 409, { ok: false, error: '已有任务在执行，请稍后再试' });
-      return;
-    }
-
-    (async () => {
-      try {
-        const body = await parseRequestBody(req);
-        const prompt = String(body.prompt || '').trim();
-
-        if (!prompt) {
-          sendJson(res, 400, { ok: false, error: '请输入要执行的指令' });
-          return;
-        }
-
-        running = true;
-        const planResult = await runPrompt(prompt);
-        sendJson(res, 200, { ok: true, data: planResult });
-      } catch (error) {
-        sendJson(res, 500, {
-          ok: false,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      } finally {
-        running = false;
-      }
-    })();
-    return;
-  }
-
   if (req.method === 'POST' && req.url === '/api/screen-unread') {
     if (running) {
       sendJson(res, 409, { ok: false, error: '已有任务在执行，请稍后再试' });
@@ -170,6 +149,18 @@ const server = http.createServer(async (req, res) => {
 
         if (!targetProfile) {
           sendJson(res, 400, { ok: false, error: '请先填写目标候选人的特征' });
+          return;
+        }
+
+        const bridgeStatus = await checkBridgeReady();
+        if (!bridgeStatus.ok) {
+          mergeUnreadTaskState({
+            running: false,
+            status: 'error',
+            finishedAt: new Date().toISOString(),
+            error: bridgeStatus.message,
+          });
+          sendJson(res, 409, { ok: false, error: bridgeStatus.message });
           return;
         }
 
@@ -200,11 +191,11 @@ const server = http.createServer(async (req, res) => {
           running: false,
           status: 'error',
           finishedAt: new Date().toISOString(),
-          error: error instanceof Error ? error.message : String(error),
+          error: normalizeBridgeError(error),
         });
         sendJson(res, 500, {
           ok: false,
-          error: error instanceof Error ? error.message : String(error),
+          error: normalizeBridgeError(error),
         });
       } finally {
         running = false;
@@ -219,7 +210,14 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && req.url === '/api/health') {
-    sendJson(res, 200, { ok: true, running });
+    const bridgeStatus = await checkBridgeReady();
+    sendJson(res, 200, { ok: true, running, bridge: bridgeStatus });
+    return;
+  }
+
+  if (req.method === 'GET' && req.url === '/api/bridge-status') {
+    const bridgeStatus = await checkBridgeReady();
+    sendJson(res, 200, { ok: true, data: bridgeStatus });
     return;
   }
 
@@ -240,4 +238,12 @@ server.on('error', (error) => {
   }
 
   throw error;
+});
+
+process.on('unhandledRejection', error => {
+  recordFatalBridgeError(error);
+});
+
+process.on('uncaughtException', error => {
+  recordFatalBridgeError(error);
 });
