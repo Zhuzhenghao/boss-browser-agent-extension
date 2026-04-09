@@ -13,6 +13,15 @@ function sanitizeFileName(value) {
     .slice(0, 80);
 }
 
+function buildFileName(record) {
+  const namePart = sanitizeFileName(record?.name) || 'candidate';
+  const idPart = sanitizeFileName(record?.candidateId)
+    .replace(/^screening-\d+-[a-z0-9]+-candidate-/i, 'c-')
+    .slice(-24);
+
+  return idPart ? `${namePart}-${idPart}.md` : `${namePart}.md`;
+}
+
 export async function writeSingleCandidateMarkdown(record) {
   if (!record?.name) {
     return null;
@@ -24,13 +33,16 @@ export async function writeSingleCandidateMarkdown(record) {
   );
   await fs.mkdir(dateDir, { recursive: true });
 
-  const fileName = `${sanitizeFileName(record.name)}.md`;
+  const fileName = buildFileName(record);
   const filePath = path.join(dateDir, fileName);
   const matched = record.matched === true;
   const decision = matched ? '符合' : '不符合';
   const reason = normalizeText(record.reason);
   const mismatchReason = matched ? '' : normalizeText(record.reason);
   const summary = normalizeText(record.resume?.summary);
+  const rawText = String(record.resume?.rawText || '').trim();
+  const rawSections = record.resume?.rawSections || {};
+  const resumeSegments = Array.isArray(record.resumeSegments) ? record.resumeSegments : [];
 
   const markdown = `# ${record.name}
 
@@ -49,6 +61,22 @@ ${summary || '无'}
 \`\`\`json
 ${JSON.stringify(record.resume || {}, null, 2)}
 \`\`\`
+
+## 原始栏目文本
+
+\`\`\`json
+${JSON.stringify(rawSections, null, 2)}
+\`\`\`
+
+## 原始分屏文本
+
+\`\`\`json
+${JSON.stringify(resumeSegments, null, 2)}
+\`\`\`
+
+## 合并后的原始全文
+
+${rawText || '无'}
 `;
 
   await fs.writeFile(filePath, markdown, 'utf8');

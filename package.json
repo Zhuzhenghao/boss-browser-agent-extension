@@ -7,13 +7,17 @@
     "dev": "wxt",
     "build": "wxt build",
     "zip": "wxt zip",
-    "bridge-demo": "DEBUG=midscene:* node server/bridge-server.js"
+    "bridge": "cross-env DEBUG=boss-agent:* node server/bridge-server.js",
+    "bridge-demo": "npm run bridge"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.1.0",
     "@ai-sdk/openai-compatible": "^2.0.37",
+    "@ai-sdk/react": "^3.0.155",
     "@midscene/web": "^1.6.1",
-    "@radix-ui/themes": "^3.2.1",
+    "antd": "^6.3.0",
     "ai": "^6.0.142",
+    "debug": "^4.4.3",
     "dotenv": "^16.6.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -22,6 +26,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.12",
+    "cross-env": "^10.1.0",
     "tailwindcss": "^4.1.12",
     "wxt": "^0.20.20"
   }

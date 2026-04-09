@@ -16,15 +16,15 @@
 
 ## 目录说明
 
-- [entrypoints/sidepanel/main.jsx](/Users/admin/projects/boss-browser-agent-extension/entrypoints/sidepanel/main.jsx)
+- [entrypoints/sidepanel/main.jsx](./entrypoints/sidepanel/main.jsx)
   React sidepanel 入口，包含菜单和路由
-- [entrypoints/sidepanel/style.css](/Users/admin/projects/boss-browser-agent-extension/entrypoints/sidepanel/style.css)
+- [entrypoints/sidepanel/style.css](./entrypoints/sidepanel/style.css)
   Sidepanel 样式
-- [server/bridge-server.js](/Users/admin/projects/boss-browser-agent-extension/server/bridge-server.js)
+- [server/bridge-server.js](./server/bridge-server.js)
   本地 bridge 服务
-- [agents/unread-screening-agent.js](/Users/admin/projects/boss-browser-agent-extension/agents/unread-screening-agent.js)
+- [agents/unread-screening-agent.js](./agents/unread-screening-agent.js)
   未读消息筛选 Agent 主流程
-- [candidate-notes](/Users/admin/projects/boss-browser-agent-extension/candidate-notes)
+- [candidate-notes](./candidate-notes)
   候选人 markdown 记录输出目录
 
 ## 环境准备
@@ -37,8 +37,16 @@ npm install
 
 2. 配置环境变量
 
+macOS / Linux:
+
 ```bash
 cp .env.example .env
+```
+
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
 ```
 
 至少填写这些：
@@ -69,7 +77,8 @@ http://127.0.0.1:3322
 
 - `GET /api/health`
 - `GET /api/bridge-status`
-- `POST /api/screen-unread`
+- `POST /api/screen-unread/stream`
+- `POST /api/screen-unread/stop`
 - `GET /api/screen-unread/state`
 
 ## 构建插件
@@ -100,7 +109,7 @@ npm run dev
 4. 选择目录：
 
 ```text
-/Users/admin/projects/boss-browser-agent-extension/.output/chrome-mv3
+.output/chrome-mv3
 ```
 
 5. 点击扩展图标，打开 side panel
@@ -195,8 +204,17 @@ candidate-notes/YYYY-MM-DD/姓名.md
 
 先查占用：
 
+macOS / Linux:
+
 ```bash
 lsof -nP -iTCP:3322 -sTCP:LISTEN
+```
+
+Windows PowerShell:
+
+```powershell
+Get-NetTCPConnection -LocalPort 3322 -State Listen
+Get-Process -Id (Get-NetTCPConnection -LocalPort 3322 -State Listen).OwningProcess
 ```
 
 结束旧进程后再启动，或者换端口：
