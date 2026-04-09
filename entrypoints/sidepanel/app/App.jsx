@@ -61,27 +61,22 @@ function AppLayout() {
     <main className="h-screen flex flex-col bg-zinc-50 overflow-x-hidden">
       
       {/* 极简 Header：固定在顶部 */}
-      <header className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-zinc-100 px-3 py-2.5">
+      <header className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-zinc-100 px-4 py-2.5">
         <div className="flex items-center justify-between gap-2">
           <Link to="/" className="flex items-center gap-2 shrink-0">
-            <div className="h-6 w-6 rounded-lg bg-gradient-to-tr from-indigo-600 to-blue-400 flex items-center justify-center shadow-sm">
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-            </div>
             <span className="text-sm font-bold tracking-tight text-zinc-900 whitespace-nowrap">
-              Agent For BOSS
+              🤖 候选人初筛智能体候
             </span>
           </Link>
 
           <div className="flex items-center gap-1">
             <Navbar />
-            <div className="h-6 w-[1px] bg-zinc-100 mx-1" />
-            <div className="h-7 w-7 rounded-full bg-zinc-200 border border-white shadow-inner shrink-0" />
           </div>
         </div>
       </header>
 
       {/* 页面内容区：去除 md:p-10，改为极小边距 */}
-      <div className="flex-1 overflow-y-auto px-3 py-4 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto">
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/tasks" element={<TasksPage />} />
@@ -110,7 +105,7 @@ export default function AppContainer() {
     <ConfigProvider
       theme={{
         token: {
-          colorPrimary: '#1a73e8', // 改为深色系，更具专业工具感
+          colorPrimary: '#4285f4', // 改为深色系，更具专业工具感
           colorBgLayout: '#fafafa',
         },
         components: {

@@ -30,7 +30,7 @@ const featureCards = [
 
 export default function HomePage() {
   return (
-    <div>
+    <div className='px-3 py-4'>
       <Row gutter={[16, 16]}>
         {featureCards.map((card, index) => {
           const content = (

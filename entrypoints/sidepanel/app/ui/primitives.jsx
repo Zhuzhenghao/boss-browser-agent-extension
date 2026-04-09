@@ -116,87 +116,82 @@ export function RunTaskPanel({
   onRun,
   onStop,
   defaultRejectionMessage,
-  showHeader = true,
   runLabel = '开始执行',
   runningLabel = '执行中...',
   hideStop = false,
 }) {
   const showStatusBanner = Boolean((status && String(status).trim()) || (error && String(error).trim()));
+  const statusToneCls = error
+    ? 'border-rose-100 bg-rose-50 text-rose-700'
+    : running
+      ? 'border-brand-100 bg-brand-50 text-brand-700'
+      : 'border-stone-200 bg-stone-50 text-stone-600';
 
   return (
     <section className="px-0 py-1">
-      <div className="flex flex-col gap-5">
-        {showHeader ? (
-          <div className="flex flex-col gap-1">
-            <Text size="1" className="tracking-[0.16em] text-stone-400">创建任务</Text>
-            <Text size="6" weight="bold" className="text-stone-900">填写任务信息</Text>
-            <Text size="2" className="leading-7 text-stone-500">
-              填写筛选要求和默认回复语后，即可开始执行。
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Text className="px-1 text-[14px] font-medium text-stone-800">
+              目标候选人特征
             </Text>
-          </div>
-        ) : null}
-
-        <div className="divide-y divide-stone-200/80 overflow-hidden rounded-[22px] border border-stone-200/80 bg-white">
-          <div className="p-4 md:p-5">
-            <div className="flex flex-col gap-2">
-              <Text size="2" weight="medium" className="text-stone-800">
-                目标候选人特征
-              </Text>
-              <Text size="1" className="leading-6 text-stone-400">
-                这段描述会作为筛选依据。
-              </Text>
-              <TextArea
-                value={targetProfile}
-                onChange={event => setTargetProfile(event.target.value)}
-                placeholder="例如：AI 项目经理，5 年以上 ToB 项目交付经验，熟悉大模型/数据产品，有零售或企业数字化背景。"
-                className="min-h-32 border-stone-200 bg-white"
-              />
-            </div>
+            <TextArea
+              value={targetProfile}
+              onChange={event => setTargetProfile(event.target.value)}
+              placeholder="例如：前端开发工程师，5 年以上中后台经验，熟悉 Vue3 / React / TypeScript，有复杂业务系统交付经验。"
+              autoSize={{ minRows: 7, maxRows: 16 }}
+            />
           </div>
 
-          <div className="p-4 md:p-5">
-            <div className="flex flex-col gap-2">
-              <Text size="2" weight="medium" className="text-stone-800">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-3 px-1">
+              <Text className="text-[14px] font-medium text-stone-800">
                 不匹配回复语
               </Text>
-              <Text size="1" className="leading-6 text-stone-400">
-                会作为默认回复内容使用。
-              </Text>
-              <TextArea
-                value={rejectionMessage}
-                onChange={event => setRejectionMessage(event.target.value)}
-                placeholder={defaultRejectionMessage}
-                className="min-h-24 rounded-[18px] border-stone-200 bg-white"
-              />
+              <Button
+                size="small"
+                type="text"
+                onClick={() => setRejectionMessage(defaultRejectionMessage)}
+              >
+                恢复默认
+              </Button>
             </div>
+            <TextArea
+              value={rejectionMessage}
+              onChange={event => setRejectionMessage(event.target.value)}
+              placeholder={defaultRejectionMessage}
+              autoSize={{ minRows: 4, maxRows: 10 }}
+            />
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 px-1">
+          <Button
+            onClick={onRun}
+            disabled={running}
+            type="primary"
+          >
+            {running ? runningLabel : runLabel}
+          </Button>
+          {!hideStop ? (
             <Button
-              onClick={onRun}
-              disabled={running}
-              type="primary"
+              onClick={onStop}
+              disabled={!running}
             >
-              {running ? runningLabel : runLabel}
+              停止
             </Button>
-            {!hideStop ? (
-              <Button
-                onClick={onStop}
-                disabled={!running}
-              >
-                停止
-              </Button>
-            ) : null}
-          </div>
-          <Tag bordered={false} className="m-0 rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-700">
+          ) : null}
+          <span className={`rounded-full border px-3 py-1 text-[12px] font-medium ${statusToneCls}`}>
             {running ? '创建中' : '待创建'}
-          </Tag>
+          </span>
         </div>
 
         {showStatusBanner ? (
-          <StatusBanner status={status} running={running} error={error} />
+          <div className={`rounded-[22px] border px-4 py-3 ${statusToneCls}`}>
+            <Text className="whitespace-pre-wrap text-[13px] leading-6">
+              {error || status}
+            </Text>
+          </div>
         ) : null}
       </div>
     </section>

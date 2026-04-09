@@ -54,15 +54,14 @@ export default function TasksPage() {
   }, [modal, message]);
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-4 px-3 py-4">
 
-      {/* 1. Header: 纯文字排版，无背景装饰 */}
       <section className="flex items-start justify-between px-1">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+          <h1 className="text-xl font-semibold tracking-[-0.03em] text-stone-900">
             消息巡检
           </h1>
-          <p className="mt-1 text-[14px] text-gray-500">
+          <p className="mt-1 text-[14px] text-stone-500">
             实时监控执行状态，结构化处理巡检结果。
           </p>
         </div>
@@ -71,13 +70,11 @@ export default function TasksPage() {
           type="primary"
           icon={<PlusOutlined />}
           onClick={() => navigate('/tasks/new')}
-          shape="round"
         >
           创建任务
         </Button>
       </section>
 
-      {/* 2. Content: 彻底打碎容器，直接展示列表 */}
       <TaskHistory
         tasks={tasks}
         selectedTaskId={selectedTaskId}
@@ -86,11 +83,8 @@ export default function TasksPage() {
         filterStatus={taskFilter}
         onFilterChange={setTaskFilter}
         showHeader={false}
-        framed={false} // 确保这个属性关闭了内部边框
+        framed={false}
       />
-
-      {/* 3. 背景装饰：仅保留极淡的氛围，不要抢戏 */}
-      <div className="pointer-events-none fixed -bottom-10 -left-10 h-64 w-64 rounded-full bg-blue-50/40 blur-[80px]" />
     </div>
   );
 }

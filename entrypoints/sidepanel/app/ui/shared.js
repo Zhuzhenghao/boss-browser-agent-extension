@@ -229,7 +229,7 @@ export function buildToolGroups(toolTimeline = []) {
 
     if (!candidateId && !candidateName) {
       if (!systemGroup) {
-        systemGroup = { key: 'system', title: '任务进度', events: [] };
+        systemGroup = { key: 'system', title: '任务准备记录', events: [] };
         groups.push(systemGroup);
       }
       systemGroup.events.push(event);
@@ -260,7 +260,18 @@ export function formatDateTime(value) {
   if (Number.isNaN(parsed.getTime())) {
     return value;
   }
-  return parsed.toLocaleString('zh-CN', { hour12: false });
+  const now = new Date();
+  const sameYear = parsed.getFullYear() === now.getFullYear();
+
+  return parsed.toLocaleString('zh-CN', {
+    ...(sameYear ? {} : { year: 'numeric' }),
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).replace(/\//g, '-');
 }
 
 export function formatListDateTime(value) {

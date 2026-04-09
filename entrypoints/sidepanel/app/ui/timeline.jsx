@@ -1,124 +1,19 @@
 import React, { memo, useMemo } from 'react';
 import { Tag, Typography } from 'antd';
-import { DetailSection, JsonBlock, SectionBlock } from './primitives';
+import { 
+  CodeOutlined 
+} from '@ant-design/icons';
+import { JsonBlock } from './primitives';
 import {
-  areToolEventsEqual,
   areToolTimelinesShallowEqual,
   buildToolGroups,
+  formatDateTime,
   getToolDisplayName,
-  getToolPhaseColor,
   getToolPhaseLabel,
   mergeToolEvents,
 } from './shared';
 
-const { Text, Title } = Typography;
-
-function getTagClass(color) {
-  const map = {
-    gray: 'bg-stone-100 text-stone-700',
-    green: 'bg-green-50 text-green-700',
-    red: 'bg-red-50 text-red-700',
-    orange: 'bg-amber-50 text-amber-700',
-    blue: 'bg-blue-50 text-blue-700',
-  };
-
-  return map[color] ?? map.gray;
-}
-
-const ToolEventCard = memo(function ToolEventCard({ event, index }) {
-  const hasInputPayload = event?.inputPayload && Object.keys(event.inputPayload).length > 0;
-  const hasOutputPayload = event?.outputPayload && Object.keys(event.outputPayload).length > 0;
-  const hasErrorPayload = event?.errorPayload && Object.keys(event.errorPayload).length > 0;
-
-  return (
-    <div className="rounded-2xl border border-stone-200 bg-white px-4 py-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <Text size="1" weight="medium" className="uppercase tracking-[0.14em] text-stone-400">
-            Tool {index + 1}
-          </Text>
-          <Text size="3" weight="medium" className="text-stone-900">
-            {getToolDisplayName(event.toolName)}
-          </Text>
-        </div>
-        <Tag bordered={false} className={`m-0 rounded-full px-2.5 py-1 text-xs font-medium ${getTagClass(getToolPhaseColor(event.phase))}`}>
-          {getToolPhaseLabel(event.phase)}
-        </Tag>
-      </div>
-
-      <div className="mt-3 rounded-2xl bg-stone-50 p-4">
-        <div className="flex flex-col gap-2">
-          {event.callSummary ? (
-            <Text size="2" className="leading-7 text-stone-500">
-              {event.callSummary}
-            </Text>
-          ) : null}
-          {(event.resultSummary || event.errorSummary || event.summary) ? (
-            <Text size="2" className="leading-7 text-stone-700">
-              {event.resultSummary || event.errorSummary || event.summary}
-            </Text>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <Tag bordered={false} className="m-0 rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-700">
-          {event.completedAt || event.at || ''}
-        </Tag>
-        {event.candidateId ? (
-          <Tag bordered={false} className="m-0 rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-700">
-            {event.candidateId}
-          </Tag>
-        ) : null}
-        {event.candidateName ? (
-          <Tag bordered={false} className="m-0 rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-700">
-            {event.candidateName}
-          </Tag>
-        ) : null}
-      </div>
-
-      <details className="mt-3 rounded-2xl border border-stone-200 bg-stone-50/70">
-        <summary className="interactive-summary list-none rounded-t-2xl px-4 py-3 text-sm font-medium text-stone-700">
-          查看原始输入/输出
-        </summary>
-        <div className="border-t border-stone-200 px-4 py-4">
-          <div className="flex flex-col gap-3">
-            {hasInputPayload ? (
-              <div>
-                <Text size="1" className="mb-2 block uppercase tracking-[0.14em] text-stone-400">
-                  输入
-                </Text>
-                <JsonBlock value={event.inputPayload} />
-              </div>
-            ) : null}
-            {hasOutputPayload ? (
-              <div>
-                <Text size="1" className="mb-2 block uppercase tracking-[0.14em] text-stone-400">
-                  输出
-                </Text>
-                <JsonBlock value={event.outputPayload} />
-              </div>
-            ) : null}
-            {hasErrorPayload ? (
-              <div>
-                <Text size="1" className="mb-2 block uppercase tracking-[0.14em] text-stone-400">
-                  错误
-                </Text>
-                <JsonBlock value={event.errorPayload} />
-              </div>
-            ) : null}
-            {!hasInputPayload && !hasOutputPayload && !hasErrorPayload ? (
-              <JsonBlock value={event.payload ?? {}} />
-            ) : null}
-          </div>
-        </div>
-      </details>
-    </div>
-  );
-}, (prevProps, nextProps) => (
-  prevProps.index === nextProps.index
-  && areToolEventsEqual(prevProps.event, nextProps.event)
-));
+const { Text } = Typography;
 
 const ToolStoryboardContent = memo(function ToolStoryboardContent({ toolTimeline }) {
   const groups = useMemo(() => (
@@ -131,23 +26,28 @@ const ToolStoryboardContent = memo(function ToolStoryboardContent({ toolTimeline
   if (!groups.length) return null;
 
   return (
-    <div className="flex flex-col gap-4">
-      {groups.map(group => (
-        <div key={group.key} className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <Title level={4} className="!m-0 !text-xl !font-semibold !text-stone-900">
-              {group.title}
-            </Title>
-            <Tag bordered={false} className="m-0 rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-700">
-              {group.events.length} 个动作
+    <div className="space-y-6">
+      {groups.map((group) => (
+        <div key={group.key} className="relative">
+          <div className="mb-4 flex items-center gap-3 px-1">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-stone-200" />
+              <span className="text-[12px] font-semibold tracking-[0.04em] text-stone-500">
+                {group.title}
+              </span>
+            </div>
+            <div className="h-[1px] flex-1 bg-stone-100" />
+            <Tag bordered={false} className="m-0 bg-stone-50 px-2.5 py-1 text-[12px] font-medium text-stone-500">
+              {group.events.length} 条记录
             </Tag>
           </div>
-          <div className="mt-4 flex flex-col gap-3">
+          
+          <div className="ml-0.5">
             {group.events.map((event, index) => (
               <ToolEventCard
-                key={`${group.key}-${index}-${event.toolName}-${event.phase}`}
+                key={`${group.key}-${index}-${event.toolName}`}
                 event={event}
-                index={index}
+                isLast={index === group.events.length - 1}
               />
             ))}
           </div>
@@ -155,38 +55,88 @@ const ToolStoryboardContent = memo(function ToolStoryboardContent({ toolTimeline
       ))}
     </div>
   );
-}, (prevProps, nextProps) => (
-  areToolTimelinesShallowEqual(prevProps.toolTimeline, nextProps.toolTimeline)
-));
+}, (prevProps, nextProps) => areToolTimelinesShallowEqual(prevProps.toolTimeline, nextProps.toolTimeline));
 
-export function TimelineSection({
-  label,
-  title,
-  description,
-  toolTimeline,
-  emptyText,
-  defaultOpen = true,
-}) {
-  if (!toolTimeline.length) {
-    return (
-      <SectionBlock label={label} title={title} description={description}>
-        <div className="rounded-2xl border border-dashed border-stone-200 bg-stone-50 px-4 py-5">
-          <Text size="2" className="text-stone-500">
-            {emptyText}
-          </Text>
+
+
+const ToolEventCard = memo(function ToolEventCard({ event, isLast }) {
+  const isError = event.phase === 'error';
+
+  return (
+    <div className="relative pb-2.5 pl-5 last:pb-0">
+      {!isLast && <div className="absolute left-[5px] top-4.5 bottom-0 w-px bg-stone-100/70" />}
+      
+      <div className={`absolute left-0 top-1.5 flex h-3 w-3 items-center justify-center rounded-full border border-white bg-white shadow-sm ${
+        isError ? 'text-rose-400' : 'text-brand-400'
+      }`}>
+        <div className={`h-1.5 w-1.5 rounded-full ${isError ? 'bg-rose-400' : 'bg-brand-400'}`} />
+      </div>
+
+      <div className="rounded-lg border border-stone-200/70 bg-white px-3 py-2.5">
+        <div className="flex flex-col gap-1.5">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[14px] font-medium text-stone-800">{getToolDisplayName(event.toolName)}</span>
+              <span className={`shrink-0 rounded-md px-2 py-0.5 text-[12px] font-medium ${
+              isError ? 'bg-rose-50 text-rose-600' : 'bg-brand-50 text-brand-600'
+              }`}>
+                {getToolPhaseLabel(event.phase)}
+              </span>
+            </div>
+          </div>
+
+          {event.inputPayload || event.outputPayload ? (
+            <details className="group/details">
+              <summary className="flex list-none items-center justify-between gap-3 cursor-pointer text-stone-500 transition-colors hover:text-brand-600">
+                <span className="text-[12px] font-mono text-stone-400">
+                  {formatDateTime(event.completedAt || event.at)}
+                </span>
+                <span className="inline-flex items-center gap-1.5 text-[12px] font-medium tracking-[0.02em]">
+                  <CodeOutlined className="text-[12px]" />
+                  查看原始数据
+                </span>
+              </summary>
+              <div className="mt-2 space-y-3 rounded-xl border border-stone-200 bg-[#1e1e1e] p-3">
+                 {event.inputPayload && (
+                   <div>
+                     <div className="mb-2 text-[12px] font-medium tracking-[0.03em] text-stone-400">输入参数</div>
+                     <JsonBlock value={event.inputPayload} inverted />
+                   </div>
+                 )}
+                 {event.outputPayload && (
+                   <div>
+                     <div className="mb-2 text-[12px] font-medium tracking-[0.03em] text-stone-400">输出结果</div>
+                     <JsonBlock value={event.outputPayload} inverted />
+                   </div>
+                 )}
+              </div>
+            </details>
+          ) : (
+            <div className="text-[12px] font-mono text-stone-400">{formatDateTime(event.completedAt || event.at)}</div>
+          )}
         </div>
-      </SectionBlock>
+      </div>
+    </div>
+  );
+});
+
+export function TimelineSection({ toolTimeline, emptyText, description }) {
+  if (!toolTimeline?.length) {
+    return (
+      <div className="flex flex-col items-center justify-center py-8">
+        <span className="text-stone-300 text-[13px] font-medium">{emptyText || '暂无处理记录'}</span>
+      </div>
     );
   }
 
   return (
-    <DetailSection label={title} defaultOpen={defaultOpen}>
-      {description ? (
-        <Text size="2" className="mb-4 block leading-7 text-stone-500">
+    <div className="bg-white px-4 py-3.5">
+      {description && (
+        <div className="mb-3 rounded-xl border border-stone-200/70 bg-stone-50/70 p-3 text-[12px] leading-6 text-stone-500">
           {description}
-        </Text>
-      ) : null}
+        </div>
+      )}
       <ToolStoryboardContent toolTimeline={toolTimeline} />
-    </DetailSection>
+    </div>
   );
 }

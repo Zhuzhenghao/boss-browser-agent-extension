@@ -1,13 +1,15 @@
 import React, { useCallback, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Button } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { Button, Space, Typography } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
-import { PanelHeader, RunTaskPanel } from '../ui';
+import { RunTaskPanel } from '../ui';
 import {
   DEFAULT_REJECTION_MESSAGE,
   startTask,
   waitForBridgeReady,
 } from '../shared-hooks';
+
+const { Text } = Typography;
 
 export default function WorkspacePage() {
   const navigate = useNavigate();
@@ -48,36 +50,41 @@ export default function WorkspacePage() {
   }, [navigate, targetProfile, rejectionMessage]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <PanelHeader
-        title="创建任务"
-        description="填写筛选要求后开始执行。"
-        action={(
+    <div className="flex min-h-screen flex-col bg-[#F8F9FA]">
+      <div className="sticky top-0 z-50 flex items-center justify-between border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur-md">
+        <Space size={14}>
           <Button
+            color="default"
+            variant="filled"
             icon={<ArrowLeftOutlined />}
-            className="min-h-10 rounded-full border-stone-200 bg-stone-50 px-4 font-medium text-stone-700 shadow-none hover:!border-stone-300 hover:!bg-stone-100 hover:!text-stone-900"
-          >
-            <Link to="/tasks">返回任务列表</Link>
-          </Button>
-        )}
-      />
+            onClick={() => navigate('/tasks')}
+          />
+          <div className="flex flex-col">
+            <Text className="text-[14px] font-bold text-zinc-800">
+              创建任务
+            </Text>
+          </div>
+        </Space>
+      </div>
 
-      <RunTaskPanel
-        targetProfile={targetProfile}
-        setTargetProfile={setTargetProfile}
-        rejectionMessage={rejectionMessage}
-        setRejectionMessage={setRejectionMessage}
-        status={status}
-        running={running}
-        error=""
-        onRun={handleRun}
-        onStop={() => {}}
-        defaultRejectionMessage={DEFAULT_REJECTION_MESSAGE}
-        showHeader={false}
-        runLabel="创建并执行"
-        runningLabel="正在创建..."
-        hideStop
-      />
+      <div className="flex-1 p-4">
+        <RunTaskPanel
+          targetProfile={targetProfile}
+          setTargetProfile={setTargetProfile}
+          rejectionMessage={rejectionMessage}
+          setRejectionMessage={setRejectionMessage}
+          status={status}
+          running={running}
+          error=""
+          onRun={handleRun}
+          onStop={() => {}}
+          defaultRejectionMessage={DEFAULT_REJECTION_MESSAGE}
+          showHeader={false}
+          runLabel="创建并执行"
+          runningLabel="正在创建..."
+          hideStop
+        />
+      </div>
     </div>
   );
 }

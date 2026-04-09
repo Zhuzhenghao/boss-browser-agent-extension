@@ -108,14 +108,22 @@ export async function getUnreadSenderNames(browserAgent, log) {
   return readUnreadCandidates(browserAgent, log);
 }
 
-export async function ensureSelectableCandidateList(browserAgent, log) {
-  await browserAgent.aiAct(
-    '回到 Boss 直聘沟通页的左侧消息列表可操作状态。如果当前有在线简历弹层、遮罩或其他覆盖层，先关闭它们。然后把注意力放到左侧消息列表区域和“全部职位”下方那一行短筛选栏，只确保当前已经回到可以继续选择候选人的消息列表视图。若“未读”不是高亮态，就点击“未读”一次；若已经高亮，就不要重复点击。',
-  );
+export async function ensureSelectableCandidateList(
+  browserAgent,
+  log,
+  options = {},
+) {
+  const { preferUnread = true } = options;
+  const listPrompt = preferUnread
+    ? '回到 Boss 直聘沟通页的左侧消息列表可操作状态。如果当前有在线简历弹层、遮罩或其他覆盖层，先关闭它们。然后把注意力放到左侧消息列表区域和“全部职位”下方那一行短筛选栏，只确保当前已经回到可以继续选择候选人的消息列表视图。若“未读”不是高亮态，就点击“未读”一次；若已经高亮，就不要重复点击。'
+    : '回到 Boss 直聘沟通页的左侧消息列表可操作状态。如果当前有在线简历弹层、遮罩或其他覆盖层，先关闭它们。如果当前正在某位候选人的聊天页，就返回到左侧消息列表可以继续点选候选人的状态。不要强制切换到“未读”，也不要改动顶部沟通分类；只要左侧消息列表已经可见、可继续选择候选人，就停止。';
+
+  await browserAgent.aiAct(listPrompt);
   await wait(1200);
-  const state = await browserAgent.aiQuery(
-    '只观察左侧消息列表区域和“全部职位”下方那一行短筛选栏。请判断当前是否已经处于可继续选择候选人的列表页。只返回 JSON：{"ready":true|false,"reason":"一句中文依据"}。如果左侧展示的是消息列表，并且“未读”高亮或当前列表 clearly 可继续点选候选人，就返回 true。',
-  );
+  const statePrompt = preferUnread
+    ? '只观察左侧消息列表区域和“全部职位”下方那一行短筛选栏。请判断当前是否已经处于可继续选择候选人的列表页。只返回 JSON：{"ready":true|false,"reason":"一句中文依据"}。如果左侧展示的是消息列表，并且“未读”高亮或当前列表 clearly 可继续点选候选人，就返回 true。'
+    : '只观察左侧消息列表区域和“全部职位”下方那一行短筛选栏。请判断当前是否已经处于可继续选择候选人的列表页。只返回 JSON：{"ready":true|false,"reason":"一句中文依据"}。只要左侧展示的是消息列表，并且此时可以继续点选候选人，就返回 true；不要把“未读”是否高亮当成必要条件。';
+  const state = await browserAgent.aiQuery(statePrompt);
 
   if (state?.ready !== true) {
     throw new Error(
@@ -123,7 +131,11 @@ export async function ensureSelectableCandidateList(browserAgent, log) {
     );
   }
 
-  log?.('已回到可继续选择候选人的列表页。');
+  log?.(
+    preferUnread
+      ? '已回到可继续选择候选人的未读列表页。'
+      : '已回到可继续选择候选人的消息列表页。',
+  );
   return {
     ok: true,
     ready: true,

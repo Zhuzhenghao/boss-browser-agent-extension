@@ -544,11 +544,32 @@ export async function openCandidateChat({
   name,
   log,
 }) {
+  const verifyCurrentChat = async () => {
+    const result = await browserAgent.aiQuery(
+      `只观察当前主内容区域，不要操作页面。请判断当前是否已经进入名字为“${name}”的候选人聊天会话。只返回 JSON：{"ready":true|false,"reason":"一句中文依据"}。如果主视图里能确认当前聊天对象就是 ${name}，并且能看到聊天消息区、输入框或聊天操作按钮，就返回 true。`,
+    );
+    return result?.ready === true;
+  };
+
   log?.(`开始打开候选人 ${name} 的聊天会话。`);
+
   await browserAgent.aiAct(
-    `在未读消息列表或当前页面中，只找到名字为“${name}”的候选人，并点击进入与他的聊天会话。不要点击其他候选人，不要打开简历，不要执行别的动作。`,
+    `优先在当前可见的左侧消息列表中，只找到名字为“${name}”的候选人，并点击进入与他的聊天会话。不要点击其他候选人，不要打开简历，不要执行别的动作。如果当前主视图其实已经是 ${name} 的聊天页，就不要重复点击。`,
   );
   await wait(700);
+
+  if (!(await verifyCurrentChat())) {
+    log?.(`当前列表未直接命中候选人 ${name}，尝试通过消息列表搜索进入聊天。`);
+    await browserAgent.aiAct(
+      `在左侧消息列表区域，使用“全部职位”附近的搜索入口，搜索候选人“${name}”。如果出现搜索输入框，就输入完整姓名 ${name}；如果出现搜索结果，只点击名字完全匹配“${name}”的候选人，进入聊天会话。不要点击其他候选人，不要打开简历，不要执行别的动作。`,
+    );
+    await wait(900);
+  }
+
+  if (!(await verifyCurrentChat())) {
+    throw new Error(`未能重新进入候选人 ${name} 的聊天会话，候选人可能已不在当前列表，且搜索兜底未命中。`);
+  }
+
   log?.(`已进入候选人 ${name} 的聊天会话。`);
   return { ok: true, name };
 }

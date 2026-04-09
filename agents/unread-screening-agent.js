@@ -367,6 +367,7 @@ export async function runUnreadScreeningAgent({
     log('已连接到当前 Chrome 标签页，准备启动巡检任务。');
 
     let candidatesToProcess = [];
+    const shouldPreferUnreadList = mode === 'start';
 
     if (mode === 'start') {
       const discoveryResult = await runDiscoveryOrchestrator({
@@ -405,7 +406,9 @@ export async function runUnreadScreeningAgent({
 
     for (const candidate of candidatesToProcess) {
       ensureNotAborted();
-      await ensureSelectableCandidateList(browserAgent, log);
+      await ensureSelectableCandidateList(browserAgent, log, {
+        preferUnread: shouldPreferUnreadList,
+      });
 
       latestTask = await persistTask(
         updateCandidateInTask(latestTask, candidate.candidateId, current => ({
