@@ -96,6 +96,26 @@ function initializeSchema(db) {
       ON screening_events(task_id, kind, created_at, id);
     CREATE INDEX IF NOT EXISTS idx_screening_tasks_status_updated_at
       ON screening_tasks(status, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS job_profiles (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL DEFAULT '',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      recruitment_info TEXT NOT NULL DEFAULT '',
+      responsibilities TEXT NOT NULL DEFAULT '',
+      requirements TEXT NOT NULL DEFAULT '',
+      preferred_qualifications TEXT NOT NULL DEFAULT '',
+      candidate_persona TEXT NOT NULL DEFAULT '',
+      deal_breakers TEXT NOT NULL DEFAULT '',
+      keywords_json TEXT NOT NULL DEFAULT '[]',
+      rejection_message TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_job_profiles_updated_at
+      ON job_profiles(updated_at DESC);
   `);
 
   ensureColumn(db, 'screening_tasks', 'current_candidate_id', 'TEXT');

@@ -54,14 +54,14 @@ export default function TasksPage() {
   }, [modal, message]);
 
   return (
-    <div className="flex flex-col gap-4 px-3 py-4">
+    <div className="flex flex-col gap-4 px-3 py-4 text-zinc-900 dark:text-zinc-100">
 
       <section className="flex items-start justify-between px-1">
         <div>
-          <h1 className="text-xl font-semibold tracking-[-0.03em] text-stone-900">
+          <h1 className="text-xl font-semibold tracking-[-0.03em] text-stone-900 dark:text-zinc-100">
             消息巡检
           </h1>
-          <p className="mt-1 text-[14px] text-stone-500">
+          <p className="mt-1 text-[14px] text-stone-500 dark:text-zinc-400">
             实时监控执行状态，结构化处理巡检结果。
           </p>
         </div>

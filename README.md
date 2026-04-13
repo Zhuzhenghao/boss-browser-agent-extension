@@ -52,6 +52,11 @@ Copy-Item .env.example .env
 至少填写这些：
 
 ```bash
+# 推荐：使用 Vercel AI Gateway
+AI_GATEWAY_API_KEY=your-vercel-ai-gateway-api-key
+AI_GATEWAY_MODEL=openai/gpt-4.1-mini
+
+# 未配置 AI Gateway 时，系统会回退到 OpenAI-compatible provider
 MIDSCENE_MODEL_API_KEY=your-api-key
 MIDSCENE_MODEL_NAME=doubao-seed-2.0-vision
 MIDSCENE_MODEL_BASE_URL=https://your-openai-compatible-endpoint/v1

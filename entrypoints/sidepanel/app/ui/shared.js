@@ -32,6 +32,8 @@ export function getToolDisplayName(toolName) {
   switch (toolName) {
     case 'open_chat_index':
       return '打开沟通页';
+    case 'switch_to_job_position':
+      return '切换招聘岗位';
     case 'switch_to_unread':
       return '切换未读';
     case 'get_unread_sender_names':
@@ -39,6 +41,8 @@ export function getToolDisplayName(toolName) {
       return '读取未读名单';
     case 'create_task':
       return '创建任务';
+    case 'search_and_select_candidate':
+      return '搜索候选人';
     case 'open_candidate_chat':
       return '打开聊天会话';
     case 'open_candidate_resume':

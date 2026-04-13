@@ -21,10 +21,23 @@ function createAbortController() {
 async function runTask(payload) {
   const abortController = createAbortController();
 
+  console.log('[task-worker] Received payload:', JSON.stringify({
+    ...payload,
+    targetProfile: payload.targetProfile ? `${payload.targetProfile.substring(0, 50)}...` : '',
+    testCandidateNames: payload.testCandidateNames,
+  }));
+  
+  console.log('[task-worker] testCandidateNames type:', typeof payload.testCandidateNames);
+  console.log('[task-worker] testCandidateNames isArray:', Array.isArray(payload.testCandidateNames));
+  console.log('[task-worker] testCandidateNames length:', payload.testCandidateNames?.length || 0);
+  console.log('[task-worker] testCandidateNames content:', JSON.stringify(payload.testCandidateNames));
+
   try {
     const result = await runUnreadScreeningAgent({
       targetProfile: payload.targetProfile,
       rejectionMessage: payload.rejectionMessage,
+      jobTitle: payload.jobTitle,
+      testCandidateNames: payload.testCandidateNames,
       taskId: payload.taskId,
       mode: payload.mode,
       abortSignal: abortController.signal,

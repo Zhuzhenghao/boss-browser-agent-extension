@@ -2,6 +2,7 @@ import { ToolLoopAgent, stepCountIs } from 'ai';
 import { AgentOverChromeBridge } from '@midscene/web/bridge-mode';
 import { createLanguageModel } from './services/language-model.js';
 import { setMidsceneDebugSink } from './services/midscene-debug.js';
+import { wait } from './services/browser-actions.js';
 import { writeSingleCandidateMarkdown } from './services/note-persistence.js';
 import {
   createScreeningTask,
@@ -19,6 +20,8 @@ import {
   ensureSelectableCandidateList,
   openChatIndex,
   readUnreadCandidates,
+  searchAndSelectCandidate,
+  switchToJobPosition,
   switchToUnread,
 } from './tools/task-discovery.js';
 
@@ -135,6 +138,7 @@ async function runDiscoveryOrchestrator({
   targetProfile,
   rejectionMessage,
   taskId, // 接受外部传入的 taskId
+  jobTitle, // 接受岗位名称
   log,
   persistTask,
   emitTaskStageEvent,
@@ -192,6 +196,20 @@ async function runDiscoveryOrchestrator({
     () => openChatIndex(browserAgent, log),
     () => '已打开 Boss 直聘沟通页，并切到未读视图。',
   );
+
+  // 如果指定了岗位名称，切换到对应岗位
+  if (jobTitle && String(jobTitle).trim()) {
+    ensureNotAborted();
+    log(`discovery orchestrator: switch_to_job_position (${jobTitle})`);
+    await runTaskStage(
+      'switch_to_job_position',
+      `准备切换到招聘岗位：${jobTitle}`,
+      () => switchToJobPosition(browserAgent, jobTitle, log),
+      result => result?.ok 
+        ? `已切换到招聘岗位：${jobTitle}` 
+        : `切换岗位失败，继续使用当前岗位`,
+    );
+  }
 
   ensureNotAborted();
   log('discovery orchestrator: switch_to_unread');
@@ -260,6 +278,8 @@ export async function runUnreadScreeningAgent({
   targetProfile,
   rejectionMessage = DEFAULT_REJECTION_MESSAGE,
   taskId = '',
+  jobTitle = '',
+  testCandidateNames = [], // 指定候选人姓名（可选）
   mode = 'start',
   onToolEvent,
   onTaskUpdate,
@@ -367,21 +387,79 @@ export async function runUnreadScreeningAgent({
     log('已连接到当前 Chrome 标签页，准备启动巡检任务。');
 
     let candidatesToProcess = [];
-    const shouldPreferUnreadList = mode === 'start';
+    const hasSpecifiedCandidates = Array.isArray(testCandidateNames) && testCandidateNames.length > 0;
+
+    log(`[Info] mode=${mode}, specifiedCandidates=${hasSpecifiedCandidates ? testCandidateNames.length : 0}`);
+
+    // 定义 runTaskStage 辅助函数
+    const runTaskStage = async (toolName, callSummary, execute, buildResultSummary) => {
+      ensureNotAborted();
+      await emitTaskStageEvent({
+        toolName,
+        phase: 'call',
+        summary: callSummary,
+      });
+
+      try {
+        const result = await execute();
+        await emitTaskStageEvent({
+          toolName,
+          phase: 'result',
+          summary: typeof buildResultSummary === 'function' ? buildResultSummary(result) : buildResultSummary,
+          payload: result ?? {},
+        });
+        return result;
+      } catch (error) {
+        await emitTaskStageEvent({
+          toolName,
+          phase: 'error',
+          summary: error instanceof Error ? error.message : String(error),
+          payload: {
+            message: error instanceof Error ? error.message : String(error),
+          },
+        });
+        throw error;
+      }
+    };
 
     if (mode === 'start') {
-      const discoveryResult = await runDiscoveryOrchestrator({
-        browserAgent,
-        targetProfile: effectiveTargetProfile,
-        rejectionMessage: effectiveRejectionMessage,
-        taskId, // 传递 taskId
-        log,
-        persistTask,
-        emitTaskStageEvent,
-        ensureNotAborted,
-      });
-      latestTask = discoveryResult.task;
-      candidatesToProcess = latestTask.candidates;
+      if (hasSpecifiedCandidates) {
+        // 指定候选人模式：直接处理指定的候选人，不需要任务准备阶段
+        log(`指定候选人模式：准备处理 ${testCandidateNames.length} 位候选人`);
+        log(`候选人名单：${testCandidateNames.join('、')}`);
+        log(`尝试读取任务 ID: ${taskId}`);
+        
+        // 读取controller创建的占位任务
+        latestTask = await readScreeningTask(String(taskId).trim());
+        if (!latestTask) {
+          throw new Error(`任务 ${taskId} 不存在，可能controller未正确创建占位任务`);
+        }
+        
+        log(`已读取任务，任务状态: ${latestTask.status}`);
+        log(`任务候选人数量：${latestTask.candidates?.length || 0}`);
+        
+        candidatesToProcess = latestTask.candidates || [];
+        log(`准备直接处理 ${candidatesToProcess.length} 位候选人，无需任务准备阶段`);
+        
+        if (candidatesToProcess.length === 0) {
+          log(`警告：candidatesToProcess 为空，任务将直接完成`);
+        }
+      } else {
+        // 自动读取未读候选人模式
+        const discoveryResult = await runDiscoveryOrchestrator({
+          browserAgent,
+          targetProfile: effectiveTargetProfile,
+          rejectionMessage: effectiveRejectionMessage,
+          taskId,
+          jobTitle,
+          log,
+          persistTask,
+          emitTaskStageEvent,
+          ensureNotAborted,
+        });
+        latestTask = discoveryResult.task;
+        candidatesToProcess = latestTask.candidates;
+      }
     } else {
       latestTask = await readScreeningTask(String(taskId).trim());
       if (!latestTask) {
@@ -406,9 +484,30 @@ export async function runUnreadScreeningAgent({
 
     for (const candidate of candidatesToProcess) {
       ensureNotAborted();
+      
+      // 统一使用搜索功能查找候选人，不依赖未读状态
+      log(`准备搜索候选人：${candidate.name}`);
+      
+      // 先确保回到消息列表页面
       await ensureSelectableCandidateList(browserAgent, log, {
-        preferUnread: shouldPreferUnreadList,
+        preferUnread: false, // 不强制切换到未读
       });
+
+      // 使用搜索功能查找并选择候选人
+      const searchResult = await searchAndSelectCandidate(browserAgent, candidate.name, log);
+      
+      if (!searchResult.ok) {
+        log(`搜索候选人 ${candidate.name} 失败，跳过该候选人`);
+        latestTask = await persistTask(
+          updateCandidateInTask(latestTask, candidate.candidateId, current => ({
+            ...current,
+            status: 'failed',
+            error: `无法通过搜索找到候选人 ${candidate.name}`,
+            finishedAt: new Date().toISOString(),
+          })),
+        );
+        continue;
+      }
 
       latestTask = await persistTask(
         updateCandidateInTask(latestTask, candidate.candidateId, current => ({
@@ -419,7 +518,7 @@ export async function runUnreadScreeningAgent({
         })),
       );
 
-      log(`开始消费候选人 ${candidate.name}，本次将为其启动新的独立 agent。`);
+      log(`已通过搜索找到候选人 ${candidate.name}，开始处理。`);
 
       const persistCandidateRecord = async record => {
         const saved = await writeSingleCandidateMarkdown(record);

@@ -191,8 +191,8 @@ export default function TaskDetailPage() {
 
   // 仅展示 return 部分的核心 UI 修改
   return (
-    <div className='flex flex-col min-h-screen bg-[#F8F9FA]'>
-      <div className='sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-zinc-200 px-4 py-3 flex items-center justify-between'>
+    <div className='flex min-h-screen flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100'>
+      <div className='sticky top-0 z-50 flex items-center justify-between border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-900/90'>
         <Space size={14}>
           <Button
             color='default'
@@ -201,7 +201,7 @@ export default function TaskDetailPage() {
             onClick={() => navigate('/tasks')}
           />
           <div className='flex flex-col'>
-            <Text className='text-[14px] font-bold text-zinc-800'>
+            <Text className='text-[14px] font-bold text-zinc-800 dark:text-zinc-100'>
               任务详情
             </Text>
           </div>

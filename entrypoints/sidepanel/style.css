@@ -1,14 +1,185 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-brand-50: #e8f0fe;
-  --color-brand-100: #d2e3fc;
-  --color-brand-200: #aecbfa;
-  --color-brand-300: #8ab4f8;
-  --color-brand-400: #669df6;
-  --color-brand-500: #4285f4; /* Google 蓝 */
-  --color-brand-600: #1a73e8;
-  --color-brand-700: #1967d2;
-  --color-brand-800: #185abc;
-  --color-brand-900: #174ea6;
+  --color-brand-50: #f8f5ee;
+  --color-brand-100: #ede4d2;
+  --color-brand-200: #dbc7a1;
+  --color-brand-300: #c8a56c;
+  --color-brand-400: #b8893f;
+  --color-brand-500: #a66f1e;
+  --color-brand-600: #8c5d19;
+  --color-brand-700: #724a14;
+  --color-brand-800: #58380f;
+  --color-brand-900: #3e260a;
+}
+
+:root {
+  color-scheme: light;
+  --app-bg: #f3f4f6;
+  --app-surface: #fcfbf8;
+  --app-surface-soft: rgba(252, 251, 248, 0.88);
+  --app-surface-muted: #f5f1ea;
+  --app-border: #ddd7cc;
+  --app-border-strong: rgba(154, 106, 27, 0.10);
+  --app-text: #171717;
+  --app-text-muted: #625b52;
+  --app-text-subtle: #8f8476;
+  --app-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  --app-accent: #9a6a1b;
+  --app-accent-strong: #6f4b11;
+  --app-accent-soft: rgba(154, 106, 27, 0.08);
+  --signal-neutral-bg: rgba(23, 23, 23, 0.035);
+  --signal-neutral-border: rgba(23, 23, 23, 0.09);
+  --signal-neutral-text: #625b52;
+  --signal-brand-bg: rgba(154, 106, 27, 0.09);
+  --signal-brand-border: rgba(154, 106, 27, 0.16);
+  --signal-brand-text: #6f4b11;
+  --signal-brand-strong-bg: rgba(154, 106, 27, 0.11);
+  --signal-brand-strong-border: rgba(154, 106, 27, 0.20);
+  --signal-brand-strong-text: #6f4b11;
+  --signal-success-bg: rgba(5, 150, 105, 0.08);
+  --signal-success-border: rgba(5, 150, 105, 0.16);
+  --signal-success-text: #047857;
+  --signal-danger-bg: rgba(225, 29, 72, 0.07);
+  --signal-danger-border: rgba(225, 29, 72, 0.16);
+  --signal-danger-text: #be123c;
+  --meta-bg: #f2efe9;
+  --meta-border: rgba(23, 23, 23, 0.07);
+  --meta-text: #625b52;
+  --panel-brand-bg: rgba(154, 106, 27, 0.06);
+  --panel-brand-border: rgba(154, 106, 27, 0.16);
+  --panel-success-bg: rgba(5, 150, 105, 0.06);
+  --panel-success-border: rgba(5, 150, 105, 0.16);
+  --panel-danger-bg: rgba(225, 29, 72, 0.06);
+  --panel-danger-border: rgba(225, 29, 72, 0.16);
+}
+
+html.dark {
+  color-scheme: dark;
+  --app-bg: #0d0f12;
+  --app-surface: #14171b;
+  --app-surface-soft: rgba(20, 23, 27, 0.82);
+  --app-surface-muted: #1b2026;
+  --app-border: #262c33;
+  --app-border-strong: rgba(166, 111, 30, 0.18);
+  --app-text: #f3efe7;
+  --app-text-muted: #a9a08f;
+  --app-text-subtle: #746d61;
+  --app-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --app-accent: #c3923d;
+  --app-accent-strong: #e0b56f;
+  --app-accent-soft: rgba(195, 146, 61, 0.14);
+  --signal-neutral-bg: rgba(255, 255, 255, 0.04);
+  --signal-neutral-border: rgba(255, 255, 255, 0.10);
+  --signal-neutral-text: #b7ad9b;
+  --signal-brand-bg: rgba(195, 146, 61, 0.14);
+  --signal-brand-border: rgba(195, 146, 61, 0.22);
+  --signal-brand-text: #e0b56f;
+  --signal-brand-strong-bg: rgba(195, 146, 61, 0.16);
+  --signal-brand-strong-border: rgba(195, 146, 61, 0.26);
+  --signal-brand-strong-text: #e8c98f;
+  --signal-success-bg: rgba(16, 185, 129, 0.12);
+  --signal-success-border: rgba(16, 185, 129, 0.24);
+  --signal-success-text: #6ee7b7;
+  --signal-danger-bg: rgba(244, 63, 94, 0.10);
+  --signal-danger-border: rgba(244, 63, 94, 0.24);
+  --signal-danger-text: #fda4af;
+  --meta-bg: #20242b;
+  --meta-border: rgba(255, 255, 255, 0.08);
+  --meta-text: #b7ad9b;
+  --panel-brand-bg: rgba(195, 146, 61, 0.10);
+  --panel-brand-border: rgba(195, 146, 61, 0.26);
+  --panel-success-bg: rgba(16, 185, 129, 0.10);
+  --panel-success-border: rgba(16, 185, 129, 0.24);
+  --panel-danger-bg: rgba(244, 63, 94, 0.10);
+  --panel-danger-border: rgba(244, 63, 94, 0.24);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+.app-shell {
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+.app-header,
+.app-footer,
+.panel-card {
+  border-color: var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+
+.app-header {
+  border-bottom: 1px solid var(--app-border-strong);
+  background: var(--app-surface-soft);
+  box-shadow: var(--app-shadow);
+}
+
+.app-footer {
+  border-top: 1px solid var(--app-border);
+}
+
+.nav-item-active {
+  background: var(--app-accent-soft);
+  color: var(--app-accent-strong);
+  box-shadow: inset 0 0 0 1px var(--app-border-strong);
+}
+
+html.dark .nav-item {
+  color: var(--app-text-muted);
+}
+
+html.dark .nav-item:hover {
+  color: var(--app-text);
+  background: var(--app-surface-muted);
+}
+
+.app-wordmark {
+  color: var(--app-text);
+}
+
+.app-wordmark-accent {
+  color: var(--app-accent-strong);
+}
+
+html.dark .interactive-summary {
+  color: var(--app-text-muted);
+}
+
+html.dark .ant-typography,
+html.dark .ant-empty-description,
+html.dark .ant-alert-message,
+html.dark .ant-alert-description {
+  color: var(--app-text);
+}
+
+html.dark .ant-btn-color-default.ant-btn-variant-filled {
+  background: var(--app-surface-muted);
+  border-color: var(--app-border);
+  color: var(--app-text);
+}
+
+html.dark .ant-input,
+html.dark .ant-input-affix-wrapper,
+html.dark .ant-input-outlined,
+html.dark textarea.ant-input {
+  background: var(--app-surface) !important;
+  border-color: var(--app-border) !important;
+  color: var(--app-text) !important;
+}
+
+html.dark .ant-input::placeholder,
+html.dark textarea.ant-input::placeholder {
+  color: var(--app-text-subtle);
 }

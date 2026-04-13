@@ -13,6 +13,13 @@ const featureCards = [
     available: true,
   },
   {
+    to: '/job-profiles',
+    title: 'JD 管理',
+    description: '维护多个岗位的招聘标准和禁忌条件',
+    badge: '已可用',
+    available: true,
+  },
+  {
     to: '/recommendations',
     title: '推荐巡检',
     description: '推荐候选人处理入口',
@@ -37,7 +44,7 @@ export default function HomePage() {
             <Card
               hoverable={card.available}
               className={`h-full rounded-2xl ${
-                card.available ? 'cursor-pointer' : 'cursor-not-allowed opacity-75'
+                card.available ? 'cursor-pointer dark:border-zinc-800 dark:bg-zinc-900' : 'cursor-not-allowed opacity-75 dark:border-zinc-800 dark:bg-zinc-900'
               }`}
               styles={{
                 body: {
@@ -48,7 +55,7 @@ export default function HomePage() {
             >
               <div className="flex h-full flex-col gap-4">
                 <div className="flex items-center justify-between">
-                  <Text type="secondary" className="text-xs tracking-[0.14em]">
+                  <Text type="secondary" className="text-xs tracking-[0.14em] dark:text-zinc-500">
                     {String(index + 1).padStart(2, '0')}
                   </Text>
 
@@ -58,10 +65,10 @@ export default function HomePage() {
                 </div>
 
                 <div className="flex flex-1 flex-col">
-                  <Title level={4} className="!mb-2">
+                  <Title level={4} className="!mb-2 dark:!text-zinc-100">
                     {card.title}
                   </Title>
-                  <Text type="secondary">{card.description}</Text>
+                  <Text type="secondary" className="dark:!text-zinc-400">{card.description}</Text>
                 </div>
               </div>
             </Card>

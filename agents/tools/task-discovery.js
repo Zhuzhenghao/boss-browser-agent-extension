@@ -4,6 +4,67 @@ import { createMidsceneDebug } from '../services/midscene-debug.js';
 const CHAT_INDEX_URL = 'https://www.zhipin.com/web/chat/index';
 const debugDiscovery = createMidsceneDebug('boss-agent:discovery');
 
+export async function searchAndSelectCandidate(browserAgent, candidateName, log) {
+  const searchPrompt = [
+    '只处理左侧消息列表区域顶部的搜索功能。',
+    '',
+    '目标区域特征：',
+    '1. 在左侧消息列表的最顶部，"全部职位"下拉框的右侧，有一个搜索按钮（放大镜图标）。',
+    '2. 点击搜索按钮后，会出现一个搜索输入框，提示文字是"搜索姓名/群聊"。',
+    '',
+    `执行要求：`,
+    `1. 点击搜索按钮，展开搜索输入框。`,
+    `2. 在搜索框中输入"${candidateName}"。`,
+    `3. 等待搜索结果出现。`,
+    `4. 在搜索结果中找到并点击"${candidateName}"这个候选人。`,
+    `5. 如果找不到"${candidateName}"，就保持当前状态。`,
+  ].join('\n');
+
+  try {
+    await browserAgent.aiAct(searchPrompt);
+    debugDiscovery('search and select candidate via aiAct ok=true candidateName=%s', candidateName);
+    log?.(`已尝试搜索并选择候选人：${candidateName}`);
+    await wait(1000);
+    return { ok: true, via: 'aiAct', candidateName };
+  } catch (error) {
+    debugDiscovery(
+      'search and select candidate via aiAct failed: %s',
+      error instanceof Error ? error.message : String(error),
+    );
+    return { ok: false, reason: 'search-candidate-failed', candidateName };
+  }
+}
+
+export async function switchToJobPosition(browserAgent, jobTitle, log) {
+  const switchJobPrompt = [
+    '只处理左侧消息列表区域顶部的"全部职位"下拉框。',
+    '',
+    '目标区域特征：',
+    '1. 在左侧消息列表的最顶部，有一个"全部职位"下拉框，右侧有搜索按钮。',
+    '2. 点击"全部职位"下拉框会展开职位列表。',
+    '',
+    `执行要求：`,
+    `1. 点击"全部职位"下拉框，展开职位列表。`,
+    `2. 在展开的职位列表中，找到并点击"${jobTitle}"这个职位。`,
+    `3. 如果找不到"${jobTitle}"，就保持当前状态不变。`,
+    `4. 点击后下拉框会收起，显示当前选中的职位名称。`,
+  ].join('\n');
+
+  try {
+    await browserAgent.aiAct(switchJobPrompt);
+    debugDiscovery('switch job position via aiAct ok=true jobTitle=%s', jobTitle);
+    log?.(`已尝试切换到招聘岗位：${jobTitle}`);
+    await wait(1000);
+    return { ok: true, via: 'aiAct', jobTitle };
+  } catch (error) {
+    debugDiscovery(
+      'switch job position via aiAct failed: %s',
+      error instanceof Error ? error.message : String(error),
+    );
+    return { ok: false, reason: 'switch-job-position-failed', jobTitle };
+  }
+}
+
 export async function switchToUnread(browserAgent, log) {
   const switchUnreadPrompt = [
     '只处理左侧消息列表区域，不要操作页面顶部那一排“全部 / 新招呼 / 沟通中 / 已约面 / 已获取简历 / 已交换电话”分类。',

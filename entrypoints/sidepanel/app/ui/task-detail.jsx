@@ -1,5 +1,5 @@
 import React, { memo, useMemo, useState, useEffect } from 'react';
-import { Button, Tag, Typography } from 'antd';
+import { Button, Typography } from 'antd';
 import {
   CheckCircleFilled,
   SyncOutlined,
@@ -24,25 +24,52 @@ import {
 
 const { Text, Title } = Typography;
 
-const CARD_BASE = 'bg-white rounded-[20px] border border-stone-200/70 shadow-sm';
+const CARD_BASE = 'rounded-[20px] border border-stone-200/70 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900';
 const SECTION_ICON_CLS = '!text-[12px] !text-stone-400';
 const SECTION_ICON_ACCENT_CLS = '!text-[12px] !text-brand-500';
 const INLINE_ICON_CLS = '!text-[12px] !text-stone-400';
 const STATUS_ICON_BASE_CLS = 'mt-[3px] shrink-0 !text-base';
+
+function SignalBadge({ tone = 'neutral', children }) {
+  const toneClass = {
+    neutral: 'border-[var(--signal-neutral-border)] bg-[var(--signal-neutral-bg)] text-[var(--signal-neutral-text)]',
+    success: 'border-[var(--signal-success-border)] bg-[var(--signal-success-bg)] text-[var(--signal-success-text)]',
+    danger: 'border-[var(--signal-danger-border)] bg-[var(--signal-danger-bg)] text-[var(--signal-danger-text)]',
+    warning: 'border-[var(--signal-brand-border)] bg-[var(--signal-brand-bg)] text-[var(--signal-brand-text)]',
+    active: 'border-[var(--signal-brand-strong-border)] bg-[var(--signal-brand-strong-bg)] text-[var(--signal-brand-strong-text)]',
+  };
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-[0.01em] ${toneClass[tone] || toneClass.neutral}`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
+      <span>{children}</span>
+    </span>
+  );
+}
+
+function MetaBadge({ children }) {
+  return (
+    <span className="inline-flex items-center rounded-full border border-[var(--meta-border)] bg-[var(--meta-bg)] px-3 py-1 text-[12px] font-medium text-[var(--meta-text)]">
+      {children}
+    </span>
+  );
+}
 
 function SectionHeading({ icon, title, meta }) {
   return (
     <div className='flex items-center justify-between gap-3 px-1'>
       <div className='flex items-center gap-2'>
         {icon}
-        <Text className='text-[13px] font-semibold tracking-[0.04em] text-stone-700'>
+        <Text className='text-[13px] font-semibold tracking-[0.04em] text-stone-700 dark:text-zinc-300'>
           {title}
         </Text>
       </div>
       {meta ? (
-        <span className='rounded-full bg-stone-100 px-3 py-1 text-[12px] font-medium text-stone-500'>
-          {meta}
-        </span>
+        React.isValidElement(meta) ? meta : (
+          <span className='rounded-full bg-stone-100 px-3 py-1 text-[12px] font-medium text-stone-500 dark:bg-zinc-800 dark:text-zinc-300'>
+            {meta}
+          </span>
+        )
       ) : null}
     </div>
   );
@@ -84,10 +111,10 @@ const TaskSummary = memo(({ task, running, onResume, onRetry }) => {
         ? `还有 ${pendingCount} 位候选人待处理`
         : '当前没有可执行操作';
   const statusToneCls = running
-    ? 'border-brand-100 bg-brand-50'
+    ? 'border-[var(--signal-brand-strong-border)] bg-[var(--signal-brand-bg)]'
     : hasFailed
-      ? 'border-rose-100 bg-rose-50'
-      : 'border-emerald-100 bg-emerald-50';
+      ? 'border-[var(--signal-danger-border)] bg-[var(--signal-danger-bg)]'
+      : 'border-[var(--signal-success-border)] bg-[var(--signal-success-bg)]';
 
   const metrics = useMemo(
     () => [
@@ -95,29 +122,29 @@ const TaskSummary = memo(({ task, running, onResume, onRetry }) => {
         label: '匹配成功',
         val: matchedCount,
         numCls: 'text-emerald-600',
-        borderCls: 'border-emerald-100 bg-emerald-50/60',
-        labelCls: 'text-stone-600',
+        borderCls: 'border-[var(--panel-success-border)] bg-[var(--panel-success-bg)]',
+        labelCls: 'text-emerald-700 dark:text-emerald-300',
       },
       {
         label: '不匹配',
         val: rejectedCount,
-        numCls: 'text-stone-700',
-        borderCls: 'border-stone-200 bg-stone-50/80',
-        labelCls: 'text-stone-600',
+        numCls: 'text-stone-800 dark:text-zinc-100',
+        borderCls: 'border-stone-200 bg-stone-50/60 dark:border-zinc-800 dark:bg-zinc-900/80',
+        labelCls: 'text-stone-500 dark:text-zinc-400',
       },
       {
         label: '执行失败',
         val: failedCount,
         numCls: 'text-rose-500',
-        borderCls: 'border-rose-100 bg-rose-50/60',
-        labelCls: 'text-rose-500',
+        borderCls: 'border-[var(--panel-danger-border)] bg-[var(--panel-danger-bg)]',
+        labelCls: 'text-rose-500 dark:text-rose-300',
       },
       {
         label: '待处理',
         val: pendingCount,
         numCls: 'text-brand-600',
-        borderCls: 'border-brand-100 bg-brand-50/60',
-        labelCls: 'text-brand-600',
+        borderCls: 'border-[var(--panel-brand-border)] bg-[var(--panel-brand-bg)]',
+        labelCls: 'text-brand-700 dark:text-brand-300',
       },
     ],
     [failedCount, matchedCount, pendingCount, rejectedCount],
@@ -137,22 +164,18 @@ const TaskSummary = memo(({ task, running, onResume, onRetry }) => {
       : '!text-emerald-500';
 
   return (
-    <div className='mb-4 overflow-hidden rounded-[28px] border border-stone-200/80 bg-white shadow-[0_8px_24px_rgba(24,24,27,0.05)]'>
-      <div className='border-b border-stone-100 bg-[radial-gradient(circle_at_top_left,_rgba(66,133,244,0.08),_transparent_34%),linear-gradient(180deg,_rgba(255,255,255,1)_0%,_rgba(250,250,250,0.98)_100%)] px-6 py-5'>
+    <div className='mb-4 overflow-hidden rounded-[28px] border border-stone-200/80 bg-white shadow-[0_8px_24px_rgba(24,24,27,0.05)] dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)]'>
+      <div className='border-b border-stone-100 bg-[radial-gradient(circle_at_top_left,_rgba(166,111,30,0.08),_transparent_34%),linear-gradient(180deg,_rgba(255,255,255,1)_0%,_rgba(250,250,250,0.98)_100%)] px-6 py-5 dark:border-zinc-800 dark:bg-[radial-gradient(circle_at_top_left,_rgba(195,146,61,0.12),_transparent_34%),linear-gradient(180deg,_rgba(20,23,27,1)_0%,_rgba(13,15,18,0.98)_100%)]'>
         <div className='mb-4 flex items-start justify-between gap-4'>
           <div className='min-w-0'>
             <div className='flex flex-wrap items-center gap-2'>
-              <h3 className='m-0 truncate text-[18px] font-semibold tracking-[-0.03em] text-stone-900'>
+              <h3 className='m-0 truncate text-[18px] font-semibold tracking-[-0.03em] text-stone-900 dark:text-zinc-100'>
                 {task.targetProfile || '前端开发工程师'}
               </h3>
 
-              <Tag
-                bordered={false}
-                color={running ? 'processing' : hasFailed ? 'error' : canResume ? 'warning' : 'success'}
-                className='m-0 rounded-full px-3 py-1 text-[12px] font-semibold leading-none'
-              >
+              <SignalBadge tone={running ? 'active' : hasFailed ? 'danger' : canResume ? 'warning' : 'success'}>
                 {running ? '进行中' : hasFailed ? '待处理' : canResume ? '可继续' : '已完成'}
-              </Tag>
+              </SignalBadge>
             </div>
           </div>
 
@@ -166,7 +189,7 @@ const TaskSummary = memo(({ task, running, onResume, onRetry }) => {
               >
                 {actionLabel}
               </Button>
-              <div className='text-right text-[12px] leading-6 text-stone-400'>
+              <div className='text-right text-[12px] leading-6 text-stone-400 dark:text-zinc-500'>
                 {actionHint}
               </div>
             </div>
@@ -174,32 +197,18 @@ const TaskSummary = memo(({ task, running, onResume, onRetry }) => {
         </div>
 
         <div className='grid grid-cols-2 gap-2.5 xl:grid-cols-4'>
-          {metrics.map((m, index) => (
+          {metrics.map((m) => (
             <div
               key={m.label}
-              className={`relative flex min-h-[78px] flex-col justify-center rounded-2xl border px-4 py-2.5 xl:min-h-[74px] ${
-                index === 0
-                  ? 'border-emerald-100 bg-emerald-50/45'
-                  : 'border-stone-200 bg-stone-50/55'
-              }`}
+              className={`relative flex min-h-[78px] flex-col justify-center rounded-2xl border px-4 py-2.5 xl:min-h-[74px] ${m.borderCls}`}
             >
-              <span className={`mb-1.5 text-[12px] font-medium ${index === 0 ? 'text-emerald-700' : 'text-stone-500'}`}>
+              <span className={`mb-1.5 text-[12px] font-medium ${m.labelCls}`}>
                 {m.label}
               </span>
-              <span
-                className={`tabular-nums text-[34px] leading-none font-semibold tracking-[-0.04em] ${
-                  index === 0
-                    ? 'text-emerald-600'
-                    : failedCount > 0 && m.label === '执行失败'
-                      ? 'text-rose-600'
-                      : canResume && m.label === '待处理'
-                        ? 'text-brand-700'
-                        : 'text-stone-800'
-                }`}
-              >
+              <span className={`tabular-nums text-[34px] leading-none font-semibold tracking-[-0.04em] ${m.numCls}`}>
                 {m.val ?? 0}
               </span>
-              {index === 0 ? (
+              {m.label === '匹配成功' ? (
                 <div className='absolute inset-y-3 left-0 w-[3px] rounded-full bg-emerald-600' />
               ) : null}
             </div>
@@ -208,7 +217,7 @@ const TaskSummary = memo(({ task, running, onResume, onRetry }) => {
       </div>
 
       <div className='p-4'>
-        <div className={`flex items-center gap-3 rounded-2xl border px-4 py-2 ${statusToneCls}`}>
+        <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 ${statusToneCls}`}>
           {running ? (
             <SyncOutlined spin className={`${STATUS_ICON_BASE_CLS} ${statusIconCls}`} />
           ) : (
@@ -216,7 +225,7 @@ const TaskSummary = memo(({ task, running, onResume, onRetry }) => {
           )}
 
           <div className='min-w-0'>
-            <div className='text-[14px] font-medium leading-5 text-stone-700'>
+            <div className='text-[14px] font-medium leading-5 text-stone-700 dark:text-zinc-200'>
               {statusText}
             </div>
           </div>
@@ -234,12 +243,8 @@ const CandidateRow = memo(({ candidate, isActive, onClick }) => {
       : '';
   const statusLabel = getCandidateStatusLabel(candidate.status);
   const summary = summarizeCandidateAction(candidate);
-  const matchedStatusCls = candidate.matched === true
-    ? 'bg-emerald-50 text-emerald-600'
-    : 'bg-stone-100 text-stone-500';
-  const statusCls = isActive
-    ? 'bg-brand-50 text-brand-600'
-    : 'bg-stone-100 text-stone-500';
+  const matchedTone = candidate.matched === true ? 'success' : 'neutral';
+  const statusTone = isActive ? 'active' : 'neutral';
 
   return (
     <button
@@ -247,30 +252,26 @@ const CandidateRow = memo(({ candidate, isActive, onClick }) => {
       onClick={onClick}
       className={`group mb-2.5 flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition-all ${
         isActive
-          ? 'border-brand-200 bg-brand-50/45 shadow-[0_4px_14px_rgba(66,133,244,0.08)]'
-          : 'border-stone-200/80 bg-white hover:border-brand-100 hover:bg-stone-50/70'
+          ? 'border-[var(--signal-brand-strong-border)] bg-[var(--panel-brand-bg)] shadow-[0_10px_30px_rgba(166,111,30,0.08)]'
+          : 'border-stone-200/80 bg-white hover:border-stone-300 hover:bg-stone-50/70 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:bg-zinc-800/60'
       }`}
     >
       <div className='min-w-0 flex-1 pr-3'>
         <div className='mb-1.5 flex items-center gap-2'>
           <span
-            className='truncate text-[15px] font-semibold tracking-[-0.02em] text-stone-900'
+            className='truncate text-[15px] font-semibold tracking-[-0.02em] text-stone-900 dark:text-zinc-100'
           >
             {candidate.name}
           </span>
 
           {matchedLabel ? (
-            <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${matchedStatusCls}`}>
-              {matchedLabel}
-            </span>
+            <SignalBadge tone={matchedTone}>{matchedLabel}</SignalBadge>
           ) : null}
 
-          <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${statusCls}`}>
-            {statusLabel}
-          </span>
+          <SignalBadge tone={statusTone}>{statusLabel}</SignalBadge>
         </div>
 
-        <div className='text-[14px] leading-6 text-stone-500 break-words'>
+        <div className='break-words text-[14px] leading-6 text-stone-500 dark:text-zinc-400'>
           {summary}
         </div>
       </div>
@@ -344,7 +345,7 @@ export const TaskDetailView = memo(function TaskDetailView({
         <SectionHeading
           icon={<UserOutlined className={SECTION_ICON_CLS} />}
           title='候选人列表'
-          meta={`${candidates.length} 人`}
+          meta={<MetaBadge>{candidates.length} 人</MetaBadge>}
         />
       </div>
 
@@ -365,32 +366,32 @@ export const TaskDetailView = memo(function TaskDetailView({
       {selectedCandidate && (
         <div className='mb-6 space-y-3'>
           <SectionHeading
-            icon={<div className='h-4 w-1.5 rounded-full bg-stone-300' />}
+            icon={<div className='h-4 w-1.5 rounded-full bg-stone-300 dark:bg-zinc-600' />}
             title={`候选人详情：${selectedCandidate.name}`}
           />
 
-          <div className={`${CARD_BASE} bg-white p-4`}>
-            <div className='mb-4 flex items-center justify-between border-b border-stone-100 pb-3'>
+          <div className={`${CARD_BASE} p-4`}>
+            <div className='mb-4 flex items-center justify-between border-b border-stone-100 pb-3 dark:border-zinc-800'>
               <div className='flex flex-col gap-1'>
-                <span className='text-[12px] font-semibold tracking-[0.03em] text-stone-400'>
+                <span className='text-[12px] font-semibold tracking-[0.03em] text-stone-400 dark:text-zinc-500'>
                   处理结论
                 </span>
                 <div className='flex items-center gap-2'>
                   {selectedCandidate.matched ? (
                     <CheckCircleFilled className='!text-[16px] !text-emerald-500' />
                   ) : (
-                    <div className='h-4 w-4 rounded-full border-2 border-stone-200' />
+                    <div className='h-4 w-4 rounded-full border-2 border-stone-200 dark:border-zinc-700' />
                   )}
-                  <span className='text-[15px] font-semibold text-stone-800'>
+                  <span className='text-[15px] font-semibold text-stone-800 dark:text-zinc-100'>
                     {selectedCandidate.matched ? '符合岗位要求' : '暂不匹配'}
                   </span>
                 </div>
               </div>
               <div className='text-right flex flex-col items-end gap-1'>
-                <span className='text-[12px] font-semibold tracking-[0.03em] text-stone-400'>
+                <span className='text-[12px] font-semibold tracking-[0.03em] text-stone-400 dark:text-zinc-500'>
                   最后同步
                 </span>
-                <div className='flex items-center gap-1.5 rounded bg-stone-50 px-2.5 py-1.5 font-mono text-[12px] text-stone-500'>
+                <div className='flex items-center gap-1.5 rounded bg-stone-50 px-2.5 py-1.5 font-mono text-[12px] text-stone-500 dark:bg-zinc-800 dark:text-zinc-300'>
                   <ClockCircleOutlined className={INLINE_ICON_CLS} />
                   <span>{formatDateTime(selectedCandidate.updatedAt)}</span>
                 </div>
@@ -400,11 +401,11 @@ export const TaskDetailView = memo(function TaskDetailView({
             <div className='relative'>
               <div className='mb-2 flex items-center gap-1.5'>
                 <FileTextOutlined className={SECTION_ICON_CLS} />
-                <span className='text-[12px] font-semibold tracking-[0.03em] text-stone-500'>
+                <span className='text-[12px] font-semibold tracking-[0.03em] text-stone-500 dark:text-zinc-400'>
                   简历摘要
                 </span>
               </div>
-              <div className='rounded-xl border border-stone-200/70 bg-stone-50/70 p-3.5 text-[14px] leading-6 text-stone-700'>
+              <div className='rounded-xl border border-stone-200/70 bg-stone-50/70 p-3.5 text-[14px] leading-6 text-stone-700 dark:border-zinc-800 dark:bg-zinc-800/70 dark:text-zinc-200'>
                 {selectedCandidate.resumeSummary || '该候选人暂无摘要记录'}
               </div>
             </div>
@@ -413,10 +414,10 @@ export const TaskDetailView = memo(function TaskDetailView({
           <FoldSection
             icon={<SyncOutlined className={SECTION_ICON_CLS} />}
             title='候选人处理记录'
-            className={`${CARD_BASE} overflow-hidden border-stone-200/70 bg-stone-50/30 p-3`}
+            className={`${CARD_BASE} overflow-hidden border-stone-200/70 bg-stone-50/30 p-3 dark:border-zinc-800 dark:bg-zinc-900`}
             defaultOpen={false}
           >
-            <div className='overflow-hidden rounded-[16px] border border-stone-200/70 bg-white'>
+            <div className='overflow-hidden rounded-[16px] border border-stone-200/70 bg-white dark:border-zinc-800 dark:bg-zinc-900'>
               <TimelineSection
                 toolTimeline={candidateTimeline}
                 emptyText='暂无记录'
@@ -431,17 +432,17 @@ export const TaskDetailView = memo(function TaskDetailView({
       <FoldSection
         icon={<SettingOutlined className={SECTION_ICON_CLS} />}
         title='任务准备记录'
-        meta={`${systemTimeline.length} 步`}
+        meta={<MetaBadge>{systemTimeline.length} 步</MetaBadge>}
         className='mt-6'
         defaultOpen={false}
       >
           <div
-            className={`${CARD_BASE} overflow-hidden border-stone-200/70 bg-stone-50/40 transition-opacity`}
+            className={`${CARD_BASE} overflow-hidden border-stone-200/70 bg-stone-50/40 transition-opacity dark:border-zinc-800 dark:bg-zinc-900`}
           >
-          <div className='flex items-center justify-between border-b border-stone-100 bg-white px-4 py-2.5'>
+          <div className='flex items-center justify-between border-b border-stone-100 bg-white px-4 py-2.5 dark:border-zinc-800 dark:bg-zinc-900'>
             <div className='flex items-center gap-2'>
               <RocketOutlined className={SECTION_ICON_CLS} />
-              <span className='text-[12px] font-semibold tracking-[0.04em] text-stone-500'>
+              <span className='text-[12px] font-semibold tracking-[0.04em] text-stone-500 dark:text-zinc-400'>
                 任务准备与分发
               </span>
             </div>

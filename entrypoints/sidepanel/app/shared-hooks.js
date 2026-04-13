@@ -4,6 +4,8 @@ export const BRIDGE_SUBSCRIBE_ENDPOINT = 'http://127.0.0.1:3322/api/screen-unrea
 export const BRIDGE_STOP_ENDPOINT = 'http://127.0.0.1:3322/api/screen-unread/stop';
 export const BRIDGE_STATUS_ENDPOINT = 'http://127.0.0.1:3322/api/bridge-status';
 export const SCREENING_TASKS_ENDPOINT = 'http://127.0.0.1:3322/api/screening-tasks';
+export const JOB_PROFILES_ENDPOINT = 'http://127.0.0.1:3322/api/job-profiles';
+export const JOB_PROFILES_IMPORT_ENDPOINT = 'http://127.0.0.1:3322/api/job-profiles/import';
 
 export const DEFAULT_REJECTION_MESSAGE = '您的简历很优秀，但是经验不匹配';
 
@@ -47,7 +49,7 @@ export async function waitForBridgeReady(setStatusFn) {
 }
 
 // 启动任务
-export async function startTask({ targetProfile, rejectionMessage, taskId = '', mode = 'start', setStatusFn }) {
+export async function startTask({ targetProfile, rejectionMessage, jobTitle = '', testCandidateNames, taskId = '', mode = 'start', setStatusFn }) {
   setStatusFn('正在启动任务...');
 
   const response = await fetch(BRIDGE_START_ENDPOINT, {
@@ -58,6 +60,8 @@ export async function startTask({ targetProfile, rejectionMessage, taskId = '', 
     body: JSON.stringify({
       targetProfile,
       rejectionMessage,
+      jobTitle,
+      testCandidateNames,
       taskId,
       mode,
     }),
@@ -116,4 +120,83 @@ export async function deleteTask(taskId) {
   if (!response.ok || !payload?.ok) {
     throw new Error(payload?.error || '删除任务失败');
   }
+}
+
+export async function fetchJobProfiles() {
+  const response = await fetch(JOB_PROFILES_ENDPOINT);
+  const payload = await response.json();
+  if (response.ok && payload.ok && Array.isArray(payload.data)) {
+    return payload.data;
+  }
+  throw new Error(payload?.error || '读取岗位 JD 失败');
+}
+
+export async function fetchJobProfile(profileId) {
+  const response = await fetch(`${JOB_PROFILES_ENDPOINT}/${encodeURIComponent(profileId)}`);
+  const payload = await response.json();
+  if (response.ok && payload.ok && payload.data) {
+    return payload.data;
+  }
+  throw new Error(payload?.error || '读取岗位 JD 详情失败');
+}
+
+export async function createJobProfile(profile) {
+  const response = await fetch(JOB_PROFILES_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ profile }),
+  });
+  const payload = await response.json();
+  if (response.ok && payload.ok && payload.data) {
+    return payload.data;
+  }
+  throw new Error(payload?.error || '创建岗位 JD 失败');
+}
+
+export async function updateJobProfile(profileId, profile) {
+  const response = await fetch(`${JOB_PROFILES_ENDPOINT}/${encodeURIComponent(profileId)}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ profile }),
+  });
+  const payload = await response.json();
+  if (response.ok && payload.ok && payload.data) {
+    return payload.data;
+  }
+  throw new Error(payload?.error || '保存岗位 JD 失败');
+}
+
+export async function deleteJobProfile(profileId) {
+  const response = await fetch(`${JOB_PROFILES_ENDPOINT}/${encodeURIComponent(profileId)}`, {
+    method: 'DELETE',
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || !payload?.ok) {
+    throw new Error(payload?.error || '删除岗位 JD 失败');
+  }
+}
+
+export async function importJobProfile(files, existingProfile) {
+  const formData = new FormData();
+  Array.from(files || []).forEach(file => {
+    formData.append('files', file);
+  });
+  formData.append('existingProfile', JSON.stringify(existingProfile || {}));
+
+  const response = await fetch(JOB_PROFILES_IMPORT_ENDPOINT, {
+    method: 'POST',
+    body: formData,
+  });
+  const payload = await response.json().catch(() => null);
+  if (response.status === 404) {
+    throw new Error('当前本地 bridge 服务还没有加载岗位导入接口，请重启 `npm run bridge-demo` 后再试。');
+  }
+  if (response.ok && payload.ok && payload.data) {
+    return payload.data;
+  }
+  throw new Error(payload?.error || '导入岗位资料失败');
 }

@@ -16,6 +16,13 @@ import {
 } from '../../agents/services/task-persistence.js';
 import { checkBridgeReady, normalizeBridgeError } from '../bridge.js';
 import { parseRequestBody, sendJson } from '../http.js';
+import { importJobProfileFromFiles } from '../job-profile-import.js';
+import {
+  deleteJobProfile,
+  listJobProfiles,
+  readJobProfile,
+  saveJobProfile,
+} from '../job-profiles-store.js';
 import {
   abortCurrentTask,
   mergeUnreadTaskState,
@@ -38,6 +45,20 @@ export function recordFatalBridgeError(state, error) {
   console.error(message);
 }
 
+function normalizeUploadedFilename(filename) {
+  const raw = String(filename || '');
+  if (!raw) {
+    return raw;
+  }
+
+  try {
+    // multipart 上传里中文文件名常被按 latin1 读取，这里转回 utf8
+    return Buffer.from(raw, 'latin1').toString('utf8');
+  } catch {
+    return raw;
+  }
+}
+
 export async function handleScreenUnreadStart(req, res, state) {
   if (state.running) {
     sendJson(res, 409, { ok: false, error: '已有任务在执行，请稍后再试' });
@@ -54,6 +75,16 @@ export async function handleScreenUnreadStart(req, res, state) {
 
   const targetProfile = String(body.targetProfile || '').trim();
   const rejectionMessage = String(body.rejectionMessage || '').trim();
+  const jobTitle = String(body.jobTitle || '').trim();
+  const testCandidateNames = Array.isArray(body.testCandidateNames) 
+    ? body.testCandidateNames
+        .map(name => String(name || '').trim())
+        .filter(Boolean)
+    : [];
+  
+  console.log('[Start] Received testCandidateNames:', JSON.stringify(testCandidateNames));
+  console.log('[Start] testCandidateNames length:', testCandidateNames.length);
+  
   let taskId = String(body.taskId || '').trim();
   const mode = String(body.mode || 'start').trim();
 
@@ -83,15 +114,18 @@ export async function handleScreenUnreadStart(req, res, state) {
   resetUnreadTaskState(state);
 
   if (mode === 'start') {
+    // 创建占位任务，如果有指定候选人则包含在内
     const placeholderTask = await persistScreeningTask({
       ...createScreeningTask({
         targetProfile,
         rejectionMessage,
-        unreadCandidates: [],
+        unreadCandidates: testCandidateNames.length > 0 ? testCandidateNames : [],
         taskId,
       }),
       status: 'running',
-      summary: '任务已创建，正在准备执行环境。',
+      summary: testCandidateNames.length > 0 
+        ? `任务已创建，准备处理 ${testCandidateNames.length} 位指定候选人。`
+        : '任务已创建，正在准备执行环境。',
     });
 
     mergeUnreadTaskState(state, {
@@ -204,6 +238,8 @@ export async function handleScreenUnreadStart(req, res, state) {
     payload: {
       targetProfile,
       rejectionMessage,
+      jobTitle,
+      testCandidateNames,
       taskId,
       mode,
     },
@@ -357,6 +393,124 @@ export async function handleListScreeningTasks(res, status) {
     status: status || undefined,
   });
   sendJson(res, 200, { ok: true, data: tasks });
+}
+
+export async function handleListJobProfiles(res) {
+  const profiles = await listJobProfiles();
+  sendJson(res, 200, { ok: true, data: profiles });
+}
+
+export async function handleReadJobProfile(res, profileId) {
+  if (!profileId) {
+    sendJson(res, 400, { ok: false, error: '缺少 profileId' });
+    return;
+  }
+
+  const profile = await readJobProfile(profileId);
+  if (!profile) {
+    sendJson(res, 404, { ok: false, error: '岗位不存在' });
+    return;
+  }
+
+  sendJson(res, 200, { ok: true, data: profile });
+}
+
+export async function handleSaveJobProfile(req, res, profileId) {
+  let body;
+  try {
+    body = await parseRequestBody(req);
+  } catch {
+    sendJson(res, 400, { ok: false, error: '请求体不是合法 JSON' });
+    return;
+  }
+
+  const profile = body?.profile || body;
+  if (!profile || typeof profile !== 'object') {
+    sendJson(res, 400, { ok: false, error: 'profile 必须是对象' });
+    return;
+  }
+
+  const saved = await saveJobProfile({
+    ...profile,
+    id: profileId || profile.id,
+    updatedAt: new Date().toISOString(),
+  });
+  sendJson(res, 200, { ok: true, data: saved });
+}
+
+export async function handleDeleteJobProfile(res, profileId) {
+  if (!profileId) {
+    sendJson(res, 400, { ok: false, error: '缺少 profileId' });
+    return;
+  }
+
+  const deleted = await deleteJobProfile(profileId);
+  sendJson(res, deleted ? 200 : 404, {
+    ok: deleted,
+    error: deleted ? null : '岗位不存在',
+  });
+}
+
+export async function handleImportJobProfile(req, res) {
+  let existingProfile = {};
+  const uploadedFiles = Array.isArray(req?.files)
+    ? req.files.map(file => ({
+        filename: normalizeUploadedFilename(file.originalname),
+        mimeType: file.mimetype,
+        contentBase64: file.buffer,
+      }))
+    : null;
+
+  let body = null;
+  if (!uploadedFiles?.length) {
+    try {
+      body = await parseRequestBody(req);
+    } catch {
+      sendJson(res, 400, { ok: false, error: '请求体不是合法 JSON' });
+      return;
+    }
+  } else {
+    const rawExistingProfile = req?.body?.existingProfile;
+    if (typeof rawExistingProfile === 'string' && rawExistingProfile.trim()) {
+      try {
+        existingProfile = JSON.parse(rawExistingProfile);
+      } catch {
+        sendJson(res, 400, { ok: false, error: 'existingProfile 不是合法 JSON' });
+        return;
+      }
+    }
+  }
+
+  const files = uploadedFiles || (Array.isArray(body?.files) ? body.files : null);
+  if (!files?.length) {
+    sendJson(res, 400, { ok: false, error: '请至少上传一个文件' });
+    return;
+  }
+
+  console.log('[job-import] 接收到导入接口请求', {
+    fileCount: files.length,
+    files: files.map(file => file?.filename || 'unknown'),
+    profileId: uploadedFiles ? existingProfile?.id || '' : (body?.existingProfile?.id || ''),
+  });
+
+  try {
+    console.log('[job-import] 开始执行导入分析');
+    const imported = await importJobProfileFromFiles({
+      files,
+      existingProfile: uploadedFiles ? existingProfile : (body?.existingProfile || {}),
+    });
+    console.log('[job-import] 导入分析成功', {
+      title: imported?.profile?.title || '',
+      missingFieldCount: Array.isArray(imported?.missingFields) ? imported.missingFields.length : 0,
+    });
+    sendJson(res, 200, { ok: true, data: imported });
+  } catch (error) {
+    console.error('[job-import] 导入分析失败', error);
+    sendJson(res, 400, {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 export async function handleReadScreeningTask(res, state, taskId) {
