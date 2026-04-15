@@ -7,6 +7,7 @@ import { writeSingleCandidateMarkdown } from './services/note-persistence.js';
 import {
   createScreeningTask,
   getTaskCandidatesForMode,
+  persistSingleCandidate,
   persistTaskEvent,
   persistScreeningTask,
   prepareTaskForResume,
@@ -17,10 +18,8 @@ import {
   createScreeningTools,
 } from './tools/candidate-screening-tools.js';
 import {
-  ensureSelectableCandidateList,
   openChatIndex,
   readUnreadCandidates,
-  searchAndSelectCandidate,
   switchToJobPosition,
   switchToUnread,
 } from './tools/task-discovery.js';
@@ -60,11 +59,125 @@ function buildTaskStageEvent({
   };
 }
 
+function buildCandidateStageEvent({
+  toolName,
+  phase,
+  summary,
+  taskId,
+  candidateId,
+  candidateName,
+  payload = {},
+}) {
+  return {
+    phase,
+    toolName,
+    candidateId,
+    candidateName,
+    taskId,
+    summary,
+    payload,
+    at: new Date().toISOString(),
+  };
+}
+
+function normalizeStepText(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function extractTextPartsFromContent(content = []) {
+  if (!Array.isArray(content)) {
+    return '';
+  }
+
+  return content
+    .filter(part => part?.type === 'text' && typeof part?.text === 'string')
+    .map(part => part.text.trim())
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function extractReasoningPartsFromContent(content = []) {
+  if (!Array.isArray(content)) {
+    return '';
+  }
+
+  return content
+    .filter(part => part?.type === 'reasoning' && typeof part?.text === 'string')
+    .map(part => part.text.trim())
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+function extractAssistantTextFromMessages(messages = []) {
+  if (!Array.isArray(messages)) {
+    return '';
+  }
+
+  const chunks = [];
+  for (const message of messages) {
+    if (message?.role !== 'assistant' || !Array.isArray(message?.content)) {
+      continue;
+    }
+
+    for (const part of message.content) {
+      if (part?.type === 'text' && typeof part?.text === 'string' && part.text.trim()) {
+        chunks.push(part.text.trim());
+      }
+    }
+  }
+
+  return chunks.join('\n\n');
+}
+
+function extractStepArtifacts(step) {
+  const text = normalizeStepText(step?.text)
+    || extractTextPartsFromContent(step?.content)
+    || extractAssistantTextFromMessages(step?.response?.messages);
+  const reasoningText = normalizeStepText(step?.reasoningText)
+    || extractReasoningPartsFromContent(step?.content);
+
+  return {
+    text,
+    reasoningText,
+  };
+}
+
+function summarizeStepDiagnostics(step) {
+  const contentTypes = Array.isArray(step?.content)
+    ? step.content.map(part => part?.type || 'unknown').join(', ')
+    : '';
+  const responseMessageRoles = Array.isArray(step?.response?.messages)
+    ? step.response.messages.map(message => message?.role || 'unknown').join(', ')
+    : '';
+
+  return {
+    stepNumber: step?.stepNumber,
+    finishReason: step?.finishReason || '',
+    textLength: typeof step?.text === 'string' ? step.text.length : 0,
+    reasoningLength: typeof step?.reasoningText === 'string' ? step.reasoningText.length : 0,
+    toolCallCount: Array.isArray(step?.toolCalls) ? step.toolCalls.length : 0,
+    toolResultCount: Array.isArray(step?.toolResults) ? step.toolResults.length : 0,
+    contentTypes,
+    responseMessageRoles,
+  };
+}
+
 function buildCandidateAgentInstructions(
   targetProfile,
   rejectionMessage,
   candidateName,
+  existingResumeSummary = '',
 ) {
+  const resumeContext = existingResumeSummary
+    ? `
+该候选人上次已提取过简历，摘要如下：
+${existingResumeSummary}
+
+如果上述摘要信息足以判断是否匹配，你可以直接做出决策，无需重新提取简历。
+如果信息不足或你认为需要更详细的内容，可以重新打开并提取简历。
+`
+    : '';
+
   return `
 你是一个招聘筛选执行 agent。你这一次只处理一个候选人：${candidateName}。
 
@@ -73,15 +186,15 @@ ${targetProfile}
 
 不匹配时发送给候选人的消息：
 ${rejectionMessage}
-
+${resumeContext}
 你可以自由决定工具顺序，但必须遵守下面的约束：
-1. 只处理候选人“${candidateName}”，不要处理其他人。
-2. 工具职责是原子的：打开聊天、打开简历、提取简历、关闭简历、读取聊天上下文、求简历、置顶、发送不匹配消息。
-3. 需要查看简历时，请自行组合 open_candidate_chat、open_candidate_resume、extract_candidate_resume、close_candidate_resume。
-4. 匹配时，需要调用 request_resume，并在需要时调用 pin_candidate。
-5. 不匹配时，需要调用 send_rejection_message。
-6. request_resume 或 send_rejection_message 必须传入一句中文 reason。
-7. 如果不确定当前页面状态，可先调用 read_chat_context 再继续。
+1. 只处理候选人”${candidateName}”，不要处理其他人。
+2. 在执行任何依赖聊天页的动作前，优先调用 ensure_candidate_chat_ready，先确认自己已经位于该候选人的聊天会话。
+3. 如果不确定当前页面状态，可调用 read_chat_context 辅助判断，但不要自己重复设计找人、回列表、搜索这些步骤，交给 ensure_candidate_chat_ready 处理。
+4. 需要查看简历时，请自行组合 open_candidate_resume、extract_candidate_resume、close_candidate_resume。
+5. 匹配时，需要调用 request_resume，并在需要时调用 pin_candidate。
+6. 不匹配时，需要调用 send_rejection_message。
+7. request_resume 或 send_rejection_message 必须传入一句中文 reason。
 
 最终输出请简洁总结：
 - 候选人姓名
@@ -133,86 +246,49 @@ function evaluateCandidateCompletion(record) {
   };
 }
 
-async function runDiscoveryOrchestrator({
+// ---- 共享的浏览器导航：确保 Chrome 处于 BOSS 聊天页 ----
+
+async function ensureBossChatPage({
   browserAgent,
-  targetProfile,
-  rejectionMessage,
-  taskId, // 接受外部传入的 taskId
-  jobTitle, // 接受岗位名称
+  jobTitle,
   log,
-  persistTask,
-  emitTaskStageEvent,
-  ensureNotAborted,
+  runTaskStage,
 }) {
-  const placeholderTask = await persistTask(
-    createScreeningTask({
-      targetProfile,
-      rejectionMessage,
-      unreadCandidates: [],
-      taskId,
-    }),
-  );
-
-  let task = await persistTask({
-    ...placeholderTask,
-    status: 'running',
-  });
-
-  const runTaskStage = async (toolName, callSummary, execute, buildResultSummary) => {
-    ensureNotAborted();
-    await emitTaskStageEvent({
-      toolName,
-      phase: 'call',
-      summary: callSummary,
-    });
-
-    try {
-      const result = await execute();
-      await emitTaskStageEvent({
-        toolName,
-        phase: 'result',
-        summary: buildResultSummary(result),
-        payload: result ?? {},
-      });
-      return result;
-    } catch (error) {
-      await emitTaskStageEvent({
-        toolName,
-        phase: 'error',
-        summary: error instanceof Error ? error.message : String(error),
-        payload: {
-          message: error instanceof Error ? error.message : String(error),
-        },
-      });
-      throw error;
-    }
-  };
-
-  ensureNotAborted();
-  log('discovery orchestrator: open_chat_index');
+  log('准备打开 Boss 直聘沟通页');
   await runTaskStage(
     'open_chat_index',
     '准备打开 Boss 直聘沟通页。',
     () => openChatIndex(browserAgent, log),
-    () => '已打开 Boss 直聘沟通页，并切到未读视图。',
+    () => '已打开 Boss 直聘沟通页。',
   );
 
-  // 如果指定了岗位名称，切换到对应岗位
   if (jobTitle && String(jobTitle).trim()) {
-    ensureNotAborted();
-    log(`discovery orchestrator: switch_to_job_position (${jobTitle})`);
+    log(`准备切换到招聘岗位：${jobTitle}`);
     await runTaskStage(
       'switch_to_job_position',
       `准备切换到招聘岗位：${jobTitle}`,
       () => switchToJobPosition(browserAgent, jobTitle, log),
-      result => result?.ok 
-        ? `已切换到招聘岗位：${jobTitle}` 
+      result => result?.ok
+        ? `已切换到招聘岗位：${jobTitle}`
         : `切换岗位失败，继续使用当前岗位`,
     );
   }
+}
 
-  ensureNotAborted();
-  log('discovery orchestrator: switch_to_unread');
+// ---- 自动发现未读候选人 ----
+
+async function discoverUnreadCandidates({
+  browserAgent,
+  targetProfile,
+  rejectionMessage,
+  taskId,
+  jobTitle,
+  jobProfileId,
+  log,
+  persistTask,
+  runTaskStage,
+}) {
+  log('准备切换到未读筛选');
   await runTaskStage(
     'switch_to_unread',
     '准备切换到未读筛选。',
@@ -220,8 +296,7 @@ async function runDiscoveryOrchestrator({
     () => '已确认当前处于未读筛选。',
   );
 
-  ensureNotAborted();
-  log('discovery orchestrator: read_unread_candidates');
+  log('准备读取当前未读候选人名单');
   const unreadResult = await runTaskStage(
     'read_unread_candidates',
     '准备读取当前未读候选人名单。',
@@ -237,9 +312,8 @@ async function runDiscoveryOrchestrator({
     ? unreadResult.names
     : [];
 
-  ensureNotAborted();
-  log('discovery orchestrator: create_task');
-  task = await runTaskStage(
+  log('准备根据未读名单创建巡检任务');
+  const task = await runTaskStage(
     'create_task',
     '准备根据未读名单创建巡检任务。',
     async () => {
@@ -248,30 +322,30 @@ async function runDiscoveryOrchestrator({
           targetProfile,
           rejectionMessage,
           unreadCandidates: unreadNames,
-          taskId, // 传递 taskId
+          taskId,
+          jobTitle,
+          jobProfileId,
         }),
       );
 
       return persistTask({
         ...createdTask,
         status: unreadNames.length ? 'running' : 'completed',
+        summary: unreadNames.length
+          ? `已发现 ${unreadNames.length} 位未读候选人，准备处理。`
+          : '当前没有未读候选人。',
       });
     },
-    createdTask => (
+    () => (
       unreadNames.length
         ? `任务已创建，待处理候选人 ${unreadNames.length} 位。`
         : '任务已创建，但当前没有未读候选人。'
     ),
   );
 
-  log(
-    `已创建巡检任务 ${task.taskId}，待处理候选人 ${unreadNames.length} 位。`,
-  );
+  log(`已创建巡检任务 ${task.taskId}，待处理候选人 ${unreadNames.length} 位。`);
 
-  return {
-    task,
-    unreadNames,
-  };
+  return { task, unreadNames };
 }
 
 export async function runUnreadScreeningAgent({
@@ -279,6 +353,7 @@ export async function runUnreadScreeningAgent({
   rejectionMessage = DEFAULT_REJECTION_MESSAGE,
   taskId = '',
   jobTitle = '',
+  jobProfileId = null,
   testCandidateNames = [], // 指定候选人姓名（可选）
   mode = 'start',
   onToolEvent,
@@ -320,13 +395,17 @@ export async function runUnreadScreeningAgent({
   const log = message => {
     const line = `[${new Date().toLocaleTimeString('zh-CN', { hour12: false })}] ${message}`;
     operationLog.push(line);
-    if (latestTask?.taskId) {
-      void persistTaskEvent({
-        taskId: latestTask.taskId,
-        kind: 'task_log',
-        payload: { message: line },
-      });
-    }
+    // 同步推送 SSE 给前端
+    onToolEvent?.({
+      phase: 'log',
+      toolName: 'system',
+      candidateId: null,
+      candidateName: '',
+      taskId: String(taskId || latestTask?.taskId || '').trim() || null,
+      summary: line,
+      payload: { message: line },
+      at: new Date().toISOString(),
+    });
   };
 
   const logDebug = ({ namespace, message }) => {
@@ -369,6 +448,37 @@ export async function runUnreadScreeningAgent({
     return event;
   };
 
+  const emitCandidateStageEvent = async ({
+    toolName,
+    phase = 'log',
+    summary,
+    candidateId,
+    candidateName,
+    payload = {},
+  }) => {
+    const event = buildCandidateStageEvent({
+      toolName,
+      phase,
+      summary,
+      taskId: String(taskId || latestTask?.taskId || '').trim() || null,
+      candidateId,
+      candidateName,
+      payload,
+    });
+
+    if (latestTask?.taskId) {
+      await persistTaskEvent({
+        taskId: latestTask.taskId,
+        candidateId,
+        kind: phase === 'error' ? 'tool_error' : 'tool_event',
+        payload: event,
+      });
+    }
+
+    onToolEvent?.(event);
+    return event;
+  };
+
   const handleAbort = () => {
     log('收到停止信号，正在尝试中断当前 Midscene 操作。');
     void destroyBrowserAgent();
@@ -381,6 +491,14 @@ export async function runUnreadScreeningAgent({
   setMidsceneDebugSink(logDebug);
 
   try {
+    const existingTaskId = String(taskId || '').trim();
+    if (existingTaskId) {
+      latestTask = await readScreeningTask(existingTaskId);
+      if (latestTask) {
+        onTaskUpdate?.(latestTask);
+      }
+    }
+
     ensureNotAborted();
     log('正在连接当前已打开的 Chrome 标签页。');
     await browserAgent.connectCurrentTab({ forceSameTabNavigation: true });
@@ -391,7 +509,7 @@ export async function runUnreadScreeningAgent({
 
     log(`[Info] mode=${mode}, specifiedCandidates=${hasSpecifiedCandidates ? testCandidateNames.length : 0}`);
 
-    // 定义 runTaskStage 辅助函数
+    // 共享的 runTaskStage 辅助函数
     const runTaskStage = async (toolName, callSummary, execute, buildResultSummary) => {
       ensureNotAborted();
       await emitTaskStageEvent({
@@ -423,39 +541,37 @@ export async function runUnreadScreeningAgent({
     };
 
     if (mode === 'start') {
+      await ensureBossChatPage({
+        browserAgent,
+        jobTitle,
+        log,
+        runTaskStage,
+      });
+
       if (hasSpecifiedCandidates) {
-        // 指定候选人模式：直接处理指定的候选人，不需要任务准备阶段
+        // 指定候选人模式：读取 controller 创建的占位任务
         log(`指定候选人模式：准备处理 ${testCandidateNames.length} 位候选人`);
         log(`候选人名单：${testCandidateNames.join('、')}`);
-        log(`尝试读取任务 ID: ${taskId}`);
-        
-        // 读取controller创建的占位任务
+
         latestTask = await readScreeningTask(String(taskId).trim());
         if (!latestTask) {
-          throw new Error(`任务 ${taskId} 不存在，可能controller未正确创建占位任务`);
+          throw new Error(`任务 ${taskId} 不存在，可能 controller 未正确创建占位任务`);
         }
-        
-        log(`已读取任务，任务状态: ${latestTask.status}`);
-        log(`任务候选人数量：${latestTask.candidates?.length || 0}`);
-        
+
         candidatesToProcess = latestTask.candidates || [];
-        log(`准备直接处理 ${candidatesToProcess.length} 位候选人，无需任务准备阶段`);
-        
-        if (candidatesToProcess.length === 0) {
-          log(`警告：candidatesToProcess 为空，任务将直接完成`);
-        }
+        log(`准备处理 ${candidatesToProcess.length} 位候选人`);
       } else {
-        // 自动读取未读候选人模式
-        const discoveryResult = await runDiscoveryOrchestrator({
+        // 自动发现未读候选人模式
+        const discoveryResult = await discoverUnreadCandidates({
           browserAgent,
           targetProfile: effectiveTargetProfile,
           rejectionMessage: effectiveRejectionMessage,
           taskId,
           jobTitle,
+          jobProfileId,
           log,
           persistTask,
-          emitTaskStageEvent,
-          ensureNotAborted,
+          runTaskStage,
         });
         latestTask = discoveryResult.task;
         candidatesToProcess = latestTask.candidates;
@@ -470,68 +586,71 @@ export async function runUnreadScreeningAgent({
 
       const resumeMode =
         mode === 'retry-failed' ? 'retry-failed' : 'unfinished';
+      log(`[Resume] 从 DB 读取任务 ${latestTask.taskId}，当前候选人状态：${latestTask.candidates.map(c => `${c.name}(${c.status}${c.resumeSummary ? ',有简历' : ''})`).join('、')}`);
+
       latestTask = await persistTask({
         ...prepareTaskForResume(latestTask, resumeMode),
         status: 'running',
       });
       candidatesToProcess = getTaskCandidatesForMode(latestTask, resumeMode);
+
+      log(`[Resume] 重置后待处理候选人 ${candidatesToProcess.length} 位：${candidatesToProcess.map(c => `${c.name}(${c.status}${c.resume ? ',简历已恢复' : ''})`).join('、')}`);
       log(
         resumeMode === 'retry-failed'
           ? `任务 ${latestTask.taskId} 正在重试失败候选人，共 ${candidatesToProcess.length} 位。`
           : `任务 ${latestTask.taskId} 正在继续处理未完成候选人，共 ${candidatesToProcess.length} 位。`,
       );
+      log('[Resume] 跳过任务准备阶段，直接恢复已有候选人处理流程。');
     }
+
+    // 辅助函数：更新单个候选人（内存 + DB），避免全量写入
+    const updateCandidate = async (candidateId, updater) => {
+      latestTask = updateCandidateInTask(latestTask, candidateId, updater);
+      const updated = latestTask.candidates.find(c => c.candidateId === candidateId);
+      if (updated) {
+        await persistSingleCandidate(latestTask.taskId, updated);
+      }
+      onTaskUpdate?.(latestTask);
+      return latestTask;
+    };
 
     for (const candidate of candidatesToProcess) {
       ensureNotAborted();
-      
-      // 统一使用搜索功能查找候选人，不依赖未读状态
-      log(`准备搜索候选人：${candidate.name}`);
-      
-      // 先确保回到消息列表页面
-      await ensureSelectableCandidateList(browserAgent, log, {
-        preferUnread: false, // 不强制切换到未读
-      });
 
-      // 使用搜索功能查找并选择候选人
-      const searchResult = await searchAndSelectCandidate(browserAgent, candidate.name, log);
-      
-      if (!searchResult.ok) {
-        log(`搜索候选人 ${candidate.name} 失败，跳过该候选人`);
-        latestTask = await persistTask(
-          updateCandidateInTask(latestTask, candidate.candidateId, current => ({
-            ...current,
-            status: 'failed',
-            error: `无法通过搜索找到候选人 ${candidate.name}`,
-            finishedAt: new Date().toISOString(),
-          })),
-        );
-        continue;
+      const candidateIndex = candidatesToProcess.indexOf(candidate) + 1;
+      log(`[${candidateIndex}/${candidatesToProcess.length}] 准备启动候选人 ${candidate.name} 的 agent（当前状态: ${candidate.status}）`);
+
+      await updateCandidate(candidate.candidateId, current => ({
+        ...current,
+        status: 'running',
+        startedAt: current.startedAt || new Date().toISOString(),
+        error: null,
+      }));
+
+      log(`[${candidateIndex}/${candidatesToProcess.length}] 已找到候选人 ${candidate.name}，开始处理。`);
+
+      // 预填充已有简历数据（继续任务时从 DB 恢复）
+      const hasExistingResume = !!(candidate.resume || candidate.resumeSummary);
+      if (hasExistingResume) {
+        candidateRecords.set(candidate.candidateId, {
+          resume: candidate.resume || null,
+          resumeSegments: candidate.resumeSegments || [],
+          resumeSummary: candidate.resumeSummary || '',
+        });
+        log(`[${candidateIndex}/${candidatesToProcess.length}] 已从 DB 恢复候选人 ${candidate.name} 的简历数据（摘要长度: ${(candidate.resumeSummary || candidate.resume?.summary || '').length}，段数: ${(candidate.resumeSegments || []).length}）`);
+      } else {
+        log(`[${candidateIndex}/${candidatesToProcess.length}] 候选人 ${candidate.name} 无已有简历数据，agent 将从头提取。`);
       }
-
-      latestTask = await persistTask(
-        updateCandidateInTask(latestTask, candidate.candidateId, current => ({
-          ...current,
-          status: 'running',
-          startedAt: current.startedAt || new Date().toISOString(),
-          error: null,
-        })),
-      );
-
-      log(`已通过搜索找到候选人 ${candidate.name}，开始处理。`);
 
       const persistCandidateRecord = async record => {
         const saved = await writeSingleCandidateMarkdown(record);
         if (!saved) {
           return;
         }
-
-        latestTask = await persistTask(
-          updateCandidateInTask(latestTask, record.candidateId, current => ({
-            ...current,
-            noteFile: saved,
-          })),
-        );
+        await updateCandidate(record.candidateId, current => ({
+          ...current,
+          noteFile: saved,
+        }));
       };
 
       const candidateTools = createScreeningTools({
@@ -563,87 +682,163 @@ export async function runUnreadScreeningAgent({
         persistCandidateRecord,
       });
 
+      const existingRecord = candidateRecords.get(candidate.candidateId);
+      const existingResumeSummary = existingRecord?.resume?.summary || candidate.resumeSummary || '';
+      if (existingResumeSummary) {
+        log(`[${candidateIndex}/${candidatesToProcess.length}] 候选人 ${candidate.name} 已有简历摘要，将注入 agent prompt（长度: ${existingResumeSummary.length}）`);
+      }
       const candidateAgent = new ToolLoopAgent({
         model: createLanguageModel(),
         instructions: buildCandidateAgentInstructions(
           effectiveTargetProfile,
           effectiveRejectionMessage,
           candidate.name,
+          existingResumeSummary,
         ),
         tools: candidateTools,
         stopWhen: stepCountIs(12),
       });
 
       try {
+        log(`[${candidateIndex}/${candidatesToProcess.length}] 启动候选人 ${candidate.name} 的 ToolLoopAgent（最大步数: 12）`);
         const result = await candidateAgent.generate({
           prompt: `开始处理候选人 ${candidate.name}。`,
           abortSignal,
+          onStepFinish: async step => {
+            const stepNum = step.stepNumber + 1;
+            const toolNames = (step.toolCalls || []).map(tc => tc.toolName).join(', ');
+            const { text: stepText, reasoningText } = extractStepArtifacts(step);
+            console.log(`[agent-step] candidate=${candidate.name} ${JSON.stringify(summarizeStepDiagnostics(step))}`);
+            if (stepText) {
+              console.log(`[agent-model] candidate=${candidate.name} step=${stepNum} text=${JSON.stringify(stepText.substring(0, 500))}`);
+              log(`[Agent] Step ${stepNum} 模型文本: ${stepText.substring(0, 500)}`);
+              await emitCandidateStageEvent({
+                toolName: 'model_response',
+                phase: 'log',
+                summary: stepText,
+                candidateId: candidate.candidateId,
+                candidateName: candidate.name,
+                payload: {
+                  stepNumber: stepNum,
+                  finishReason: step.finishReason || '',
+                  text: stepText,
+                },
+              });
+            }
+            if (reasoningText) {
+              console.log(`[agent-model] candidate=${candidate.name} step=${stepNum} reasoning=${JSON.stringify(reasoningText.substring(0, 300))}`);
+              log(`[Agent] Step ${stepNum} 推理: ${reasoningText.substring(0, 300)}`);
+              await emitCandidateStageEvent({
+                toolName: 'model_reasoning',
+                phase: 'log',
+                summary: reasoningText,
+                candidateId: candidate.candidateId,
+                candidateName: candidate.name,
+                payload: {
+                  stepNumber: stepNum,
+                  finishReason: step.finishReason || '',
+                  reasoningText,
+                },
+              });
+            }
+            if (toolNames) {
+              log(`[Agent] Step ${stepNum} 工具调用: ${toolNames}`);
+            }
+            if (!stepText && !reasoningText) {
+              console.log(`[agent-model] candidate=${candidate.name} step=${stepNum} no-text-output toolCalls=${toolNames || 'none'}`);
+            }
+            log(`[Agent] Step ${stepNum} 完成（finishReason: ${step.finishReason}）`);
+          },
         });
+
+        const stepCount = Array.isArray(result?.steps) ? result.steps.length : 0;
+        const toolCallCount = Array.isArray(result?.steps)
+          ? result.steps.reduce((sum, step) => sum + (Array.isArray(step?.toolCalls) ? step.toolCalls.length : 0), 0)
+          : 0;
+        log(`[${candidateIndex}/${candidatesToProcess.length}] 候选人 ${candidate.name} agent 执行完成（步数: ${stepCount}，工具调用: ${toolCallCount}）`);
+
+        const fallbackFinalText = Array.isArray(result?.steps)
+          ? [...result.steps]
+              .reverse()
+              .map(step => extractStepArtifacts(step).text)
+              .find(Boolean) || ''
+          : '';
+        const finalText = normalizeStepText(result?.text) || fallbackFinalText;
+
+        // 记录模型最终输出（最后一步的汇总）
+        if (finalText) {
+          console.log(`[agent-model] candidate=${candidate.name} final=${JSON.stringify(finalText.substring(0, 500))}`);
+          log(`[Agent] 模型最终输出: ${finalText.substring(0, 500)}`);
+          await emitCandidateStageEvent({
+            toolName: 'model_final_output',
+            phase: 'result',
+            summary: finalText,
+            candidateId: candidate.candidateId,
+            candidateName: candidate.name,
+            payload: {
+              text: finalText,
+            },
+          });
+        } else {
+          console.log(`[agent-model] candidate=${candidate.name} final=<empty>`);
+        }
 
         const finalRecord = candidateRecords.get(candidate.candidateId) || {};
         const completionState = evaluateCandidateCompletion(finalRecord);
+        log(`[${candidateIndex}/${candidatesToProcess.length}] 候选人 ${candidate.name} 闭环检查：ok=${completionState.ok}, status=${completionState.status}, matched=${completionState.matched}`);
         if (!completionState.ok) {
           throw new Error(completionState.summary);
         }
-        latestTask = await persistTask(
-          updateCandidateInTask(latestTask, candidate.candidateId, current => ({
-            ...current,
-            status: completionState.status,
-            matched: completionState.matched,
-            reason: completionState.reason || '',
-            rejectionMessage: finalRecord.rejectionMessage || '',
-            resumeSummary: finalRecord.resume?.summary || '',
-            resume: finalRecord.resume || null,
-            resumeSegments: finalRecord.resumeSegments || [],
-            stepCount: Array.isArray(result?.steps) ? result.steps.length : 0,
-            toolCallCount: Array.isArray(result?.steps)
-              ? result.steps.reduce(
-                  (sum, step) =>
-                    sum +
-                    (Array.isArray(step?.toolCalls)
-                      ? step.toolCalls.length
-                      : 0),
-                  0,
-                )
-              : 0,
-            toolResultCount: Array.isArray(result?.steps)
-              ? result.steps.reduce(
-                  (sum, step) =>
-                    sum +
-                    (Array.isArray(step?.toolResults)
-                      ? step.toolResults.length
-                      : 0),
-                  0,
-                )
-              : 0,
-            finishedAt: new Date().toISOString(),
-            error: null,
-          })),
-        );
+        await updateCandidate(candidate.candidateId, current => ({
+          ...current,
+          status: completionState.status,
+          matched: completionState.matched,
+          reason: completionState.reason || '',
+          rejectionMessage: finalRecord.rejectionMessage || '',
+          resumeSummary: finalRecord.resume?.summary || '',
+          resume: finalRecord.resume || null,
+          resumeSegments: finalRecord.resumeSegments || [],
+          stepCount: Array.isArray(result?.steps) ? result.steps.length : 0,
+          toolCallCount: Array.isArray(result?.steps)
+            ? result.steps.reduce(
+                (sum, step) =>
+                  sum + (Array.isArray(step?.toolCalls) ? step.toolCalls.length : 0),
+                0,
+              )
+            : 0,
+          toolResultCount: Array.isArray(result?.steps)
+            ? result.steps.reduce(
+                (sum, step) =>
+                  sum + (Array.isArray(step?.toolResults) ? step.toolResults.length : 0),
+                0,
+              )
+            : 0,
+          finishedAt: new Date().toISOString(),
+          error: null,
+        }));
 
-        log(
-          `候选人 ${candidate.name} 已处理完成，结果：${completionState.summary}`,
-        );
+        log(`[${candidateIndex}/${candidatesToProcess.length}] 候选人 ${candidate.name} 已处理完成，结果：${completionState.summary}`);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        latestTask = await persistTask(
-          updateCandidateInTask(latestTask, candidate.candidateId, current => ({
-            ...current,
-            status: 'failed',
-            error: message,
-            finishedAt: new Date().toISOString(),
-          })),
-        );
-        log(`候选人 ${candidate.name} 处理失败：${message}`);
+        await updateCandidate(candidate.candidateId, current => ({
+          ...current,
+          status: 'failed',
+          error: message,
+          finishedAt: new Date().toISOString(),
+        }));
+        log(`[${candidateIndex}/${candidatesToProcess.length}] 候选人 ${candidate.name} 处理失败：${message}`);
       }
     }
 
     const finalStatus = latestTask.failedCount > 0 ? 'failed' : 'completed';
+    const finalSummary = (latestTask.unreadCandidateCount || 0) === 0
+      ? '本次巡检未发现未读候选人，任务已完成。'
+      : buildTaskSummary(latestTask);
     latestTask = await persistTask({
       ...latestTask,
       status: finalStatus,
       finishedAt: new Date().toISOString(),
-      summary: buildTaskSummary(latestTask),
+      summary: finalSummary,
       error:
         finalStatus === 'failed'
           ? `任务已完成，但有 ${latestTask.failedCount} 位候选人处理失败。`

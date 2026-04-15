@@ -266,6 +266,34 @@ export default function JobProfileEditorPage() {
                 />
               </div>
 
+              <div className="flex items-center justify-between rounded-2xl border border-stone-200 px-4 py-3 dark:border-zinc-800">
+                <div className="flex flex-col gap-1">
+                  <Text className="text-[14px] font-medium text-stone-800 dark:text-zinc-200">
+                    开启定时巡检
+                  </Text>
+                  <Text className="text-[12px] text-stone-500 dark:text-zinc-400">
+                    自动定时创建巡检任务，无需手动触发。
+                  </Text>
+                </div>
+                <Switch
+                  checked={profile.autoInspection}
+                  onChange={checked => updateProfile({ autoInspection: checked })}
+                />
+              </div>
+
+              {profile.autoInspection && (
+                <FieldBlock label="巡检间隔（分钟）" hint="多久执行一次自动巡检，建议 30-120 分钟。">
+                  <Input
+                    type="number"
+                    min={10}
+                    max={1440}
+                    value={profile.inspectionInterval}
+                    onChange={event => updateProfile({ inspectionInterval: Number(event.target.value) || 60 })}
+                    placeholder="60"
+                  />
+                </FieldBlock>
+              )}
+
               <FieldBlock label="招聘信息" hint="岗位背景、级别、汇报对象、地点、年限、学历等基础信息。">
                 <TextArea value={profile.recruitmentInfo} onChange={event => updateProfile({ recruitmentInfo: event.target.value })} autoSize={{ minRows: 3, maxRows: 8 }} />
               </FieldBlock>

@@ -63,7 +63,8 @@ function getStatusTone(color) {
 }
 
 function getTaskDisplayTitle(task) {
-  return task.targetProfile || task.summary || '未命名巡检任务';
+  const jobTitle = String(task.jobTitle || '').trim();
+  return jobTitle || '未命名巡检任务';
 }
 
 function FilterTabs({ filterStatus, onFilterChange }) {
@@ -91,82 +92,95 @@ function FilterTabs({ filterStatus, onFilterChange }) {
   );
 }
 
+function formatDuration(startedAt, finishedAt) {
+  if (!startedAt) return null;
+  const start = new Date(startedAt);
+  const end = finishedAt ? new Date(finishedAt) : new Date();
+  const diffMs = end - start;
+  if (diffMs < 0) return null;
+  const totalSeconds = Math.floor(diffMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) return `${seconds}秒`;
+  if (seconds === 0) return `${minutes}分钟`;
+  return `${minutes}分${seconds}秒`;
+}
+
 function TaskCard({ task, isSelected, onSelect, onDelete }) {
   const taskTitle = getTaskDisplayTitle(task);
+  const isTerminal = ['completed', 'stopped', 'failed'].includes(task.status);
+  const duration = formatDuration(task.startedAt, isTerminal ? task.finishedAt : null);
 
   return (
     <div
       onClick={() => onSelect(task.taskId)}
       className={`
         group relative flex w-full cursor-pointer flex-col rounded-[22px] border transition-all
-        ${isSelected 
-          ? 'border-brand-200 bg-brand-50/55 shadow-[0_10px_30px_rgba(166,111,30,0.10)] dark:border-brand-700 dark:bg-brand-950/20' 
+        ${isSelected
+          ? 'border-brand-200 bg-brand-50/55 shadow-[0_10px_30px_rgba(192,146,63,0.14)] dark:border-brand-700 dark:bg-brand-950/20'
           : 'border-stone-200/80 bg-white hover:border-stone-300 hover:bg-stone-50/70 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-700 dark:hover:bg-zinc-800/80'}
       `}
     >
       <div className="p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h3 className="line-clamp-2 text-[16px] font-semibold leading-snug tracking-[-0.02em] text-stone-900 dark:text-zinc-100">
-            {taskTitle}
-          </h3>
-          <p className="mt-1 line-clamp-2 text-[14px] leading-6 text-stone-500 dark:text-zinc-400">
-            {task.currentCandidateName || '暂无执行中的候选人特征描述'}
-          </p>
-        </div>
-
-        <div className="flex flex-col items-end gap-1.5">
-          <StatusBadge tone={getStatusTone(getTaskStatusColor(task.status))}>
-            {getTaskStatusLabel(task.status)}
-          </StatusBadge>
-          
-          {onDelete && (
-            <Button
-              type="text"
-              size="small"
-              className="!text-stone-300 transition-colors hover:!text-rose-500 dark:!text-zinc-600 dark:hover:!text-rose-400"
-              icon={<DeleteOutlined style={{ fontSize: '14px' }} />}
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(task.taskId);
-              }}
-            />
-          )}
-        </div>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-end justify-between gap-4 border-t border-stone-100 pt-3.5 dark:border-zinc-800">
-        <div className="flex gap-6">
-          <div className="flex flex-col">
-            <span className="text-[11px] font-medium text-stone-400 dark:text-zinc-500">创建于</span>
-            <span className="text-[13px] tabular-nums text-stone-600 dark:text-zinc-300">
-              {formatListDateTime(task.startedAt)}
-            </span>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h3 className="line-clamp-1 text-[15px] font-semibold leading-snug tracking-[-0.02em] text-stone-900 dark:text-zinc-100">
+              {taskTitle}
+            </h3>
           </div>
-          <div className="flex flex-col">
-            <span className="text-[11px] font-medium text-stone-400 dark:text-zinc-500">更新于</span>
-            <span className="text-[13px] tabular-nums text-stone-600 dark:text-zinc-300">
-              {formatListDateTime(task.updatedAt)}
-            </span>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <StatusBadge tone={getStatusTone(getTaskStatusColor(task.status))}>
+              {getTaskStatusLabel(task.status)}
+            </StatusBadge>
+
+            {onDelete && (
+              <Button
+                type="text"
+                size="small"
+                className="!text-stone-300 transition-colors hover:!text-rose-500 dark:!text-zinc-600 dark:hover:!text-rose-400"
+                icon={<DeleteOutlined style={{ fontSize: '14px' }} />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(task.taskId);
+                }}
+              />
+            )}
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="mt-2.5 flex flex-wrap items-center gap-2">
           <MetaPill>
             <span className="tabular-nums font-semibold">
               {task.processedCount || 0}/{task.unreadCandidateCount || 0}
             </span>
             <span className="ml-1 opacity-80">人已处理</span>
           </MetaPill>
-          
+
           {(task.matchedCount || 0) > 0 && (
             <MetaPill tone="success">
               <span className="tabular-nums font-semibold">{task.matchedCount}</span>
               <span className="ml-1 opacity-90">人匹配</span>
             </MetaPill>
           )}
+
+          {duration && (
+            <MetaPill>
+              <span className="opacity-80">耗时</span>
+              <span className="ml-1 tabular-nums font-semibold">{duration}</span>
+            </MetaPill>
+          )}
         </div>
-      </div>
+
+        {task.status === 'failed' && task.error && (
+          <p className="mt-2 line-clamp-1 text-[13px] leading-5 text-rose-600 dark:text-rose-400">
+            {task.error}
+          </p>
+        )}
+
+        <div className="mt-2.5 text-[12px] tabular-nums text-stone-400 dark:text-zinc-500">
+          {formatListDateTime(task.startedAt)}
+        </div>
       </div>
     </div>
   );

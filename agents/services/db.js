@@ -101,6 +101,9 @@ function initializeSchema(db) {
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL DEFAULT '',
       enabled INTEGER NOT NULL DEFAULT 1,
+      auto_inspection INTEGER NOT NULL DEFAULT 0,
+      inspection_interval INTEGER NOT NULL DEFAULT 60,
+      last_inspection_at TEXT,
       recruitment_info TEXT NOT NULL DEFAULT '',
       responsibilities TEXT NOT NULL DEFAULT '',
       requirements TEXT NOT NULL DEFAULT '',
@@ -119,6 +122,11 @@ function initializeSchema(db) {
   `);
 
   ensureColumn(db, 'screening_tasks', 'current_candidate_id', 'TEXT');
+  ensureColumn(db, 'screening_tasks', 'job_profile_id', 'TEXT');
+  ensureColumn(db, 'screening_tasks', 'job_title', 'TEXT NOT NULL DEFAULT \'\'');
+  ensureColumn(db, 'job_profiles', 'auto_inspection', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(db, 'job_profiles', 'inspection_interval', 'INTEGER NOT NULL DEFAULT 60');
+  ensureColumn(db, 'job_profiles', 'last_inspection_at', 'TEXT');
   db.exec(`
     UPDATE screening_candidates
     SET logs_json = NULL

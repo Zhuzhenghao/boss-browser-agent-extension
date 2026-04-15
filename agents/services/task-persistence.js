@@ -64,6 +64,8 @@ function mapTaskRow(taskRow, candidateRows = []) {
     status: taskRow.status,
     targetProfile: taskRow.target_profile,
     rejectionMessage: taskRow.rejection_message,
+    jobTitle: taskRow.job_title,
+    jobProfileId: taskRow.job_profile_id,
     unreadCandidateCount: taskRow.unread_candidate_count,
     processedCount: taskRow.processed_count,
     matchedCount: taskRow.matched_count,
@@ -116,6 +118,8 @@ export function createScreeningTask({
   rejectionMessage,
   unreadCandidates = [],
   taskId, // 接受外部传入的 taskId
+  jobProfileId = null, // 关联的 JD ID
+  jobTitle = '', // 岗位名称
 }) {
   const now = new Date().toISOString();
   // 如果没有提供 taskId，则生成一个新的
@@ -127,6 +131,8 @@ export function createScreeningTask({
     status: 'queued',
     targetProfile,
     rejectionMessage,
+    jobProfileId,
+    jobTitle,
     unreadCandidateCount: unreadCandidates.length,
     processedCount: 0,
     matchedCount: 0,
@@ -173,11 +179,11 @@ export async function persistScreeningTask(task) {
 
   const writeTask = db.prepare(`
     INSERT INTO screening_tasks (
-      id, type, status, target_profile, rejection_message,
+      id, type, status, target_profile, rejection_message, job_profile_id, job_title,
       unread_candidate_count, processed_count, matched_count, rejected_count, failed_count,
       current_candidate_id, current_candidate_name, summary, error, started_at, finished_at, updated_at
     ) VALUES (
-      @id, @type, @status, @target_profile, @rejection_message,
+      @id, @type, @status, @target_profile, @rejection_message, @job_profile_id, @job_title,
       @unread_candidate_count, @processed_count, @matched_count, @rejected_count, @failed_count,
       @current_candidate_id, @current_candidate_name, @summary, @error, @started_at, @finished_at, @updated_at
     )
@@ -186,6 +192,8 @@ export async function persistScreeningTask(task) {
       status = excluded.status,
       target_profile = excluded.target_profile,
       rejection_message = excluded.rejection_message,
+      job_profile_id = excluded.job_profile_id,
+      job_title = excluded.job_title,
       unread_candidate_count = excluded.unread_candidate_count,
       processed_count = excluded.processed_count,
       matched_count = excluded.matched_count,
@@ -245,6 +253,8 @@ export async function persistScreeningTask(task) {
       status: nextTask.status,
       target_profile: nextTask.targetProfile,
       rejection_message: nextTask.rejectionMessage,
+      job_profile_id: nextTask.jobProfileId || null,
+      job_title: nextTask.jobTitle || '',
       unread_candidate_count: nextTask.unreadCandidateCount || 0,
       processed_count: nextTask.processedCount || 0,
       matched_count: nextTask.matchedCount || 0,
@@ -296,6 +306,91 @@ export async function persistScreeningTask(task) {
   return nextTask;
 }
 
+export async function persistSingleCandidate(taskId, candidate) {
+  const db = getDb();
+  const now = new Date().toISOString();
+
+  db.exec('BEGIN');
+  try {
+    db.prepare(`
+      INSERT INTO screening_candidates (
+        id, task_id, name, status, matched, reason, rejection_message,
+        resume_summary, resume_json, resume_segments_json, note_file_json, error,
+        step_count, tool_call_count, tool_result_count,
+        logs_json, tool_timeline_json, steps_json,
+        started_at, finished_at, updated_at
+      ) VALUES (
+        @id, @task_id, @name, @status, @matched, @reason, @rejection_message,
+        @resume_summary, @resume_json, @resume_segments_json, @note_file_json, @error,
+        @step_count, @tool_call_count, @tool_result_count,
+        @logs_json, @tool_timeline_json, @steps_json,
+        @started_at, @finished_at, @updated_at
+      )
+      ON CONFLICT(id) DO UPDATE SET
+        status = excluded.status,
+        matched = excluded.matched,
+        reason = excluded.reason,
+        rejection_message = excluded.rejection_message,
+        resume_summary = excluded.resume_summary,
+        resume_json = excluded.resume_json,
+        resume_segments_json = excluded.resume_segments_json,
+        note_file_json = excluded.note_file_json,
+        error = excluded.error,
+        step_count = excluded.step_count,
+        tool_call_count = excluded.tool_call_count,
+        tool_result_count = excluded.tool_result_count,
+        tool_timeline_json = excluded.tool_timeline_json,
+        steps_json = excluded.steps_json,
+        started_at = excluded.started_at,
+        finished_at = excluded.finished_at,
+        updated_at = excluded.updated_at
+    `).run({
+      id: candidate.candidateId,
+      task_id: taskId,
+      name: candidate.name,
+      status: candidate.status,
+      matched:
+        candidate.matched === null || candidate.matched === undefined
+          ? null
+          : (candidate.matched ? 1 : 0),
+      reason: candidate.reason || '',
+      rejection_message: candidate.rejectionMessage || '',
+      resume_summary: candidate.resumeSummary || '',
+      resume_json: stringifyJson(candidate.resume),
+      resume_segments_json: stringifyJson(candidate.resumeSegments),
+      note_file_json: stringifyJson(candidate.noteFile),
+      error: candidate.error || null,
+      step_count: candidate.stepCount || 0,
+      tool_call_count: candidate.toolCallCount || 0,
+      tool_result_count: candidate.toolResultCount || 0,
+      logs_json: null,
+      tool_timeline_json: stringifyJson(candidate.toolTimeline || []),
+      steps_json: stringifyJson(candidate.steps || []),
+      started_at: candidate.startedAt || null,
+      finished_at: candidate.finishedAt || null,
+      updated_at: now,
+    });
+
+    // 用 SQL 聚合更新任务计数
+    db.prepare(`
+      UPDATE screening_tasks SET
+        processed_count = (SELECT COUNT(*) FROM screening_candidates WHERE task_id = ? AND status IN ('completed','rejected','failed')),
+        matched_count = (SELECT COUNT(*) FROM screening_candidates WHERE task_id = ? AND matched = 1),
+        rejected_count = (SELECT COUNT(*) FROM screening_candidates WHERE task_id = ? AND status = 'rejected'),
+        failed_count = (SELECT COUNT(*) FROM screening_candidates WHERE task_id = ? AND status = 'failed'),
+        current_candidate_id = CASE WHEN ? = 'running' THEN ? ELSE current_candidate_id END,
+        current_candidate_name = CASE WHEN ? = 'running' THEN ? ELSE current_candidate_name END,
+        updated_at = ?
+      WHERE id = ?
+    `).run(taskId, taskId, taskId, taskId, candidate.status, candidate.candidateId, candidate.status, candidate.name, now, taskId);
+
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
 export async function persistTaskEvent({
   taskId,
   candidateId = null,
@@ -344,18 +439,31 @@ export async function deleteScreeningTask(taskId) {
   return result.changes > 0;
 }
 
-export async function listScreeningTasks({ limit = 20, status } = {}) {
+export async function listScreeningTasks({ limit = 20, status, jobProfileId } = {}) {
   const db = getDb();
-  const baseSql = `
-      SELECT *
-      FROM screening_tasks
-      ${status ? 'WHERE status = ?' : ''}
-      ORDER BY updated_at DESC
-      LIMIT ?
-    `;
-  const taskRows = db
-    .prepare(baseSql)
-    .all(...(status ? [status, limit] : [limit]));
+  
+  let baseSql = 'SELECT * FROM screening_tasks';
+  const conditions = [];
+  const params = [];
+  
+  if (status) {
+    conditions.push('status = ?');
+    params.push(status);
+  }
+  
+  if (jobProfileId) {
+    conditions.push('job_profile_id = ?');
+    params.push(jobProfileId);
+  }
+  
+  if (conditions.length > 0) {
+    baseSql += ' WHERE ' + conditions.join(' AND ');
+  }
+  
+  baseSql += ' ORDER BY updated_at DESC LIMIT ?';
+  params.push(limit);
+  
+  const taskRows = db.prepare(baseSql).all(...params);
 
   return taskRows.map(taskRow => mapTaskRow(taskRow, readCandidateRows(taskRow.id)));
 }

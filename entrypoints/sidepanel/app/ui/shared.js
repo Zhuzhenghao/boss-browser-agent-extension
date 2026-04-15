@@ -10,6 +10,8 @@ export function getToolPhaseLabel(phase) {
       return '已完成';
     case 'error':
       return '失败';
+    case 'log':
+      return '日志';
     default:
       return '未知';
   }
@@ -30,6 +32,14 @@ export function getToolPhaseColor(phase) {
 
 export function getToolDisplayName(toolName) {
   switch (toolName) {
+    case 'system':
+      return '系统日志';
+    case 'model_response':
+      return '模型回复';
+    case 'model_reasoning':
+      return '模型推理';
+    case 'model_final_output':
+      return '最终结论';
     case 'open_chat_index':
       return '打开沟通页';
     case 'switch_to_job_position':
@@ -41,6 +51,8 @@ export function getToolDisplayName(toolName) {
       return '读取未读名单';
     case 'create_task':
       return '创建任务';
+    case 'ensure_candidate_chat_ready':
+      return '确认聊天会话';
     case 'search_and_select_candidate':
       return '搜索候选人';
     case 'open_candidate_chat':
@@ -164,7 +176,11 @@ export function resolveResultToolTimeline(result, task) {
 }
 
 export function getSystemTimeline(toolTimeline = []) {
-  return toolTimeline.filter(event => !event?.candidateId && !event?.candidateName);
+  return toolTimeline.filter(event => (
+    !event?.candidateId
+      && !event?.candidateName
+      && !(event?.toolName === 'system' && event?.phase === 'log')
+  ));
 }
 
 export function getCandidateTimeline(toolTimeline = [], candidate) {

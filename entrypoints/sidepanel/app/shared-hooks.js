@@ -49,7 +49,7 @@ export async function waitForBridgeReady(setStatusFn) {
 }
 
 // 启动任务
-export async function startTask({ targetProfile, rejectionMessage, jobTitle = '', testCandidateNames, taskId = '', mode = 'start', setStatusFn }) {
+export async function startTask({ targetProfile, rejectionMessage, jobTitle = '', jobProfileId = null, testCandidateNames, taskId = '', mode = 'start', setStatusFn }) {
   setStatusFn('正在启动任务...');
 
   const response = await fetch(BRIDGE_START_ENDPOINT, {
@@ -61,6 +61,7 @@ export async function startTask({ targetProfile, rejectionMessage, jobTitle = ''
       targetProfile,
       rejectionMessage,
       jobTitle,
+      jobProfileId,
       testCandidateNames,
       taskId,
       mode,
@@ -85,10 +86,18 @@ export async function stopTask() {
 }
 
 // 获取任务列表
-export async function fetchTaskList(taskFilter = 'all') {
-  const query = taskFilter && taskFilter !== 'all'
-    ? `?status=${encodeURIComponent(taskFilter)}`
-    : '';
+export async function fetchTaskList(taskFilter = 'all', jobProfileId = null) {
+  const params = new URLSearchParams();
+  
+  if (taskFilter && taskFilter !== 'all') {
+    params.append('status', taskFilter);
+  }
+  
+  if (jobProfileId) {
+    params.append('jobProfileId', jobProfileId);
+  }
+  
+  const query = params.toString() ? `?${params.toString()}` : '';
   const response = await fetch(`${SCREENING_TASKS_ENDPOINT}${query}`);
   const payload = await response.json();
   if (response.ok && payload.ok && Array.isArray(payload.data)) {

@@ -30,6 +30,9 @@ function mapRow(row) {
     id: row.id,
     title: row.title,
     enabled: row.enabled === 1,
+    autoInspection: row.auto_inspection === 1,
+    inspectionInterval: row.inspection_interval || 60,
+    lastInspectionAt: row.last_inspection_at,
     recruitmentInfo: row.recruitment_info,
     responsibilities: row.responsibilities,
     requirements: row.requirements,
@@ -59,17 +62,22 @@ function writeProfile(profile) {
 
   db.prepare(`
     INSERT INTO job_profiles (
-      id, title, enabled, recruitment_info, responsibilities, requirements,
+      id, title, enabled, auto_inspection, inspection_interval, last_inspection_at,
+      recruitment_info, responsibilities, requirements,
       preferred_qualifications, candidate_persona, deal_breakers, keywords_json,
       rejection_message, notes, created_at, updated_at
     ) VALUES (
-      @id, @title, @enabled, @recruitment_info, @responsibilities, @requirements,
+      @id, @title, @enabled, @auto_inspection, @inspection_interval, @last_inspection_at,
+      @recruitment_info, @responsibilities, @requirements,
       @preferred_qualifications, @candidate_persona, @deal_breakers, @keywords_json,
       @rejection_message, @notes, @created_at, @updated_at
     )
     ON CONFLICT(id) DO UPDATE SET
       title = excluded.title,
       enabled = excluded.enabled,
+      auto_inspection = excluded.auto_inspection,
+      inspection_interval = excluded.inspection_interval,
+      last_inspection_at = excluded.last_inspection_at,
       recruitment_info = excluded.recruitment_info,
       responsibilities = excluded.responsibilities,
       requirements = excluded.requirements,
@@ -84,6 +92,9 @@ function writeProfile(profile) {
     id: normalized.id,
     title: normalized.title,
     enabled: normalized.enabled ? 1 : 0,
+    auto_inspection: normalized.autoInspection ? 1 : 0,
+    inspection_interval: normalized.inspectionInterval || 60,
+    last_inspection_at: normalized.lastInspectionAt || null,
     recruitment_info: normalized.recruitmentInfo,
     responsibilities: normalized.responsibilities,
     requirements: normalized.requirements,
@@ -98,6 +109,13 @@ function writeProfile(profile) {
   });
 
   return readJobProfile(normalized.id);
+}
+
+let _migrated = false;
+function ensureMigrated() {
+  if (_migrated) return;
+  _migrated = true;
+  ensureMigrated();
 }
 
 function migrateLegacyJsonIfNeeded() {
@@ -126,7 +144,7 @@ function migrateLegacyJsonIfNeeded() {
 }
 
 export function listJobProfiles() {
-  migrateLegacyJsonIfNeeded();
+  ensureMigrated();
   const db = getDb();
   const rows = db.prepare(`
     SELECT *
@@ -137,7 +155,7 @@ export function listJobProfiles() {
 }
 
 export function readJobProfile(id) {
-  migrateLegacyJsonIfNeeded();
+  ensureMigrated();
   if (!id) {
     return null;
   }
@@ -151,7 +169,7 @@ export function readJobProfile(id) {
 }
 
 export function saveJobProfile(profile) {
-  migrateLegacyJsonIfNeeded();
+  ensureMigrated();
   return writeProfile(profile);
 }
 

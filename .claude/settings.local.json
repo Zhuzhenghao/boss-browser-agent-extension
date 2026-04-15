@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check agents/unread-screening-agent.js)",
+      "Bash(node --check server/controllers/screening-controller.js)",
+      "Bash(node --check server/state.js)",
+      "Bash(node --check server/http.js)",
+      "Bash(node --check agents/services/task-persistence.js)",
+      "Bash(node --check server/job-profiles-store.js)",
+      "Bash(node --check agents/services/resume-service.js)",
+      "Bash(node -e \"const m = require.resolve\\('ai'\\); const path = require\\('path'\\); console.log\\(path.dirname\\(m\\)\\)\")",
+      "WebFetch(domain:minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com)"
+    ]
+  }
+}

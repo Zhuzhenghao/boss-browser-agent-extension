@@ -37,6 +37,7 @@ async function runTask(payload) {
       targetProfile: payload.targetProfile,
       rejectionMessage: payload.rejectionMessage,
       jobTitle: payload.jobTitle,
+      jobProfileId: payload.jobProfileId,
       testCandidateNames: payload.testCandidateNames,
       taskId: payload.taskId,
       mode: payload.mode,

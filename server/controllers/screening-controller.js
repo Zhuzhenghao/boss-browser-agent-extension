@@ -15,7 +15,7 @@ import {
   readTaskToolEvents,
 } from '../../agents/services/task-persistence.js';
 import { checkBridgeReady, normalizeBridgeError } from '../bridge.js';
-import { parseRequestBody, sendJson } from '../http.js';
+import { sendJson } from '../http.js';
 import { importJobProfileFromFiles } from '../job-profile-import.js';
 import {
   deleteJobProfile,
@@ -25,13 +25,13 @@ import {
 } from '../job-profiles-store.js';
 import {
   abortCurrentTask,
+  isRunning,
   mergeUnreadTaskState,
   resetUnreadTaskState,
 } from '../state.js';
 
 export function recordFatalBridgeError(state, error) {
   const message = normalizeBridgeError(error);
-  state.running = false;
   if (state.currentTaskProcess && !state.currentTaskProcess.killed) {
     state.currentTaskProcess.kill();
     state.currentTaskProcess = null;
@@ -60,22 +60,17 @@ function normalizeUploadedFilename(filename) {
 }
 
 export async function handleScreenUnreadStart(req, res, state) {
-  if (state.running) {
+  if (isRunning(state)) {
     sendJson(res, 409, { ok: false, error: '已有任务在执行，请稍后再试' });
     return;
   }
 
-  let body;
-  try {
-    body = await parseRequestBody(req);
-  } catch {
-    sendJson(res, 400, { ok: false, error: '请求体不是合法 JSON' });
-    return;
-  }
+  const body = req.body || {};
 
   const targetProfile = String(body.targetProfile || '').trim();
   const rejectionMessage = String(body.rejectionMessage || '').trim();
   const jobTitle = String(body.jobTitle || '').trim();
+  const jobProfileId = String(body.jobProfileId || '').trim() || null;
   const testCandidateNames = Array.isArray(body.testCandidateNames) 
     ? body.testCandidateNames
         .map(name => String(name || '').trim())
@@ -114,18 +109,20 @@ export async function handleScreenUnreadStart(req, res, state) {
   resetUnreadTaskState(state);
 
   if (mode === 'start') {
-    // 创建占位任务，如果有指定候选人则包含在内
+    // 两种模式都创建占位任务，确保前端跳转到详情时任务已存在
     const placeholderTask = await persistScreeningTask({
       ...createScreeningTask({
         targetProfile,
         rejectionMessage,
         unreadCandidates: testCandidateNames.length > 0 ? testCandidateNames : [],
         taskId,
+        jobProfileId,
+        jobTitle,
       }),
       status: 'running',
-      summary: testCandidateNames.length > 0 
+      summary: testCandidateNames.length > 0
         ? `任务已创建，准备处理 ${testCandidateNames.length} 位指定候选人。`
-        : '任务已创建，正在准备执行环境。',
+        : '任务已创建，正在发现未读候选人...',
     });
 
     mergeUnreadTaskState(state, {
@@ -139,8 +136,7 @@ export async function handleScreenUnreadStart(req, res, state) {
     startedAt: new Date().toISOString(),
     taskId: taskId, // 立即设置 taskId
   });
-  state.running = true;
-  
+
   console.log('[Start] State after merge, taskId:', state.unreadTaskState.taskId);
 
   // 立即返回 taskId，不等待
@@ -189,7 +185,6 @@ export async function handleScreenUnreadStart(req, res, state) {
         finishedAt: new Date().toISOString(),
         taskId: message.data?.taskId || taskId,
       });
-      state.running = false;
       return;
     }
 
@@ -200,7 +195,6 @@ export async function handleScreenUnreadStart(req, res, state) {
         finishedAt: new Date().toISOString(),
         error: message.data?.error || '任务执行失败',
       });
-      state.running = false;
     }
   });
 
@@ -214,7 +208,6 @@ export async function handleScreenUnreadStart(req, res, state) {
       finishedAt: new Date().toISOString(),
       error: normalizeBridgeError(error),
     });
-    state.running = false;
   });
 
   child.on('exit', code => {
@@ -222,14 +215,13 @@ export async function handleScreenUnreadStart(req, res, state) {
       state.currentTaskProcess = null;
     }
 
-    if (state.running) {
+    if (isRunning(state)) {
       mergeUnreadTaskState(state, {
         running: false,
         status: code === 0 ? (state.unreadTaskState.status || 'completed') : 'error',
         finishedAt: new Date().toISOString(),
         error: code === 0 ? state.unreadTaskState.error : (state.unreadTaskState.error || `任务进程异常退出 (${code ?? 'unknown'})`),
       });
-      state.running = false;
     }
   });
 
@@ -239,6 +231,7 @@ export async function handleScreenUnreadStart(req, res, state) {
       targetProfile,
       rejectionMessage,
       jobTitle,
+      jobProfileId,
       testCandidateNames,
       taskId,
       mode,
@@ -256,11 +249,11 @@ export function handleScreenUnreadSubscribeByTaskId(res, state, taskId) {
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
       console.log(`[SSE] Client subscribed to task: ${taskId}`);
-      console.log(`[SSE] Current state.running: ${state.running}`);
+      console.log(`[SSE] Current isRunning: ${isRunning(state)}`);
       console.log(`[SSE] Current state.unreadTaskState.taskId: ${state.unreadTaskState.taskId}`);
 
       // 如果订阅的是当前正在运行的任务，发送实时状态
-      if (state.running && state.unreadTaskState.taskId === taskId) {
+      if (isRunning(state) && state.unreadTaskState.taskId === taskId) {
         console.log(`[SSE] Task ${taskId} is running, starting to stream updates`);
         
         // 先发送当前状态
@@ -328,7 +321,7 @@ export function handleScreenUnreadSubscribeByTaskId(res, state, taskId) {
           }
 
           // 检查任务是否完成
-          if (!state.running) {
+          if (!isRunning(state)) {
             console.log(`[SSE] Task completed, sending completion event`);
             clearInterval(checkInterval);
             writer.write({
@@ -387,10 +380,11 @@ export function handleScreenUnreadState(res, state) {
   sendJson(res, 200, { ok: true, data: state.unreadTaskState });
 }
 
-export async function handleListScreeningTasks(res, status) {
+export async function handleListScreeningTasks(res, status, jobProfileId) {
   const tasks = await listScreeningTasks({
     limit: 30,
     status: status || undefined,
+    jobProfileId: jobProfileId || undefined,
   });
   sendJson(res, 200, { ok: true, data: tasks });
 }
@@ -416,13 +410,7 @@ export async function handleReadJobProfile(res, profileId) {
 }
 
 export async function handleSaveJobProfile(req, res, profileId) {
-  let body;
-  try {
-    body = await parseRequestBody(req);
-  } catch {
-    sendJson(res, 400, { ok: false, error: '请求体不是合法 JSON' });
-    return;
-  }
+  const body = req.body || {};
 
   const profile = body?.profile || body;
   if (!profile || typeof profile !== 'object') {
@@ -463,12 +451,7 @@ export async function handleImportJobProfile(req, res) {
 
   let body = null;
   if (!uploadedFiles?.length) {
-    try {
-      body = await parseRequestBody(req);
-    } catch {
-      sendJson(res, 400, { ok: false, error: '请求体不是合法 JSON' });
-      return;
-    }
+    body = req.body || {};
   } else {
     const rawExistingProfile = req?.body?.existingProfile;
     if (typeof rawExistingProfile === 'string' && rawExistingProfile.trim()) {
@@ -520,7 +503,7 @@ export async function handleReadScreeningTask(res, state, taskId) {
   }
 
   let task = await readScreeningTask(taskId);
-  if (!task && state?.running && state?.unreadTaskState?.taskId === taskId && state?.unreadTaskState?.task) {
+  if (!task && isRunning(state) && state?.unreadTaskState?.taskId === taskId && state?.unreadTaskState?.task) {
     task = state.unreadTaskState.task;
   }
 
@@ -546,7 +529,7 @@ export async function handleDeleteScreeningTask(res, state, taskId) {
   }
 
   const currentTaskId = state?.unreadTaskState?.task?.taskId || state?.unreadTaskState?.taskId;
-  if (state.running && currentTaskId === taskId) {
+  if (isRunning(state) && currentTaskId === taskId) {
     sendJson(res, 409, { ok: false, error: '任务正在执行中，请先停止后再删除' });
     return;
   }
@@ -560,7 +543,7 @@ export async function handleDeleteScreeningTask(res, state, taskId) {
 
 export async function handleHealth(res, state) {
   const bridgeStatus = await checkBridgeReady();
-  sendJson(res, 200, { ok: true, running: state.running, bridge: bridgeStatus });
+  sendJson(res, 200, { ok: true, running: isRunning(state), bridge: bridgeStatus });
 }
 
 export async function handleBridgeStatus(res) {

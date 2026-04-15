@@ -4,6 +4,38 @@ import { createMidsceneDebug } from '../services/midscene-debug.js';
 const CHAT_INDEX_URL = 'https://www.zhipin.com/web/chat/index';
 const debugDiscovery = createMidsceneDebug('boss-agent:discovery');
 
+export async function isCandidateChatOpen(browserAgent, candidateName, log) {
+  const prompt = [
+    `当前应处于名字为"${candidateName}"的聊天会话。`,
+    `只观察当前主内容区域，不要点击，不要输入，不要打开简历。`,
+    `请判断当前主视图是否已经是"${candidateName}"的聊天页面。`,
+    '只返回 JSON：{"ready":true|false,"reason":"一句中文依据"}。',
+  ].join('\n');
+
+  try {
+    const result = await browserAgent.aiQuery(prompt);
+    const ready = result?.ready === true;
+    log?.(ready
+      ? `当前已经位于 ${candidateName} 的聊天会话，无需重新搜索。`
+      : `当前不是 ${candidateName} 的聊天会话：${String(result?.reason || '未提供原因')}`);
+    return {
+      ok: true,
+      ready,
+      reason: String(result?.reason || ''),
+    };
+  } catch (error) {
+    debugDiscovery(
+      'check current candidate chat failed: %s',
+      error instanceof Error ? error.message : String(error),
+    );
+    return {
+      ok: false,
+      ready: false,
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 export async function searchAndSelectCandidate(browserAgent, candidateName, log) {
   const searchPrompt = [
     '只处理左侧消息列表区域顶部的搜索功能。',

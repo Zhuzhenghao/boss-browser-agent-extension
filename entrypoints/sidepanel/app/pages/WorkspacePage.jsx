@@ -121,6 +121,7 @@ export default function WorkspacePage() {
         targetProfile: targetProfile.trim(),
         rejectionMessage: rejectionMessage.trim(),
         jobTitle: selectedJobProfile?.title || '',
+        jobProfileId: selectedJobProfile?.id || null,
         testCandidateNames: candidateNames.length > 0 ? candidateNames : undefined,
         taskId: '',
         mode: 'start',

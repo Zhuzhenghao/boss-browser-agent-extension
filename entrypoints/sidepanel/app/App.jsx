@@ -159,7 +159,7 @@ export default function AppContainer() {
       theme={{
         algorithm: isDark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
         token: {
-          colorPrimary: '#a66f1e',
+          colorPrimary: '#c0923f',
           colorBgLayout: isDark ? '#0f1115' : '#fafafa',
           colorBgBase: isDark ? '#181b20' : '#ffffff',
           colorTextBase: isDark ? '#f5f5f5' : '#18181b',

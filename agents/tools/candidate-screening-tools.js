@@ -8,6 +8,11 @@ import {
   openCandidateChat,
   openCandidateResume,
 } from '../services/resume-service.js';
+import {
+  ensureSelectableCandidateList,
+  isCandidateChatOpen,
+  searchAndSelectCandidate,
+} from './task-discovery.js';
 
 const DEFAULT_REJECTION_MESSAGE = '您的简历很优秀，但是经验不匹配';
 
@@ -19,8 +24,8 @@ function summarizeToolEvent(toolName, phase, payload) {
 
   if (phase === 'call') {
     switch (toolName) {
-      case 'open_candidate_chat':
-        return `准备打开 ${name || '候选人'} 的聊天会话`;
+      case 'ensure_candidate_chat_ready':
+        return `准备确认并进入 ${name || '候选人'} 的聊天会话`;
       case 'open_candidate_resume':
         return `准备打开 ${name || '候选人'} 的在线简历`;
       case 'extract_candidate_resume':
@@ -47,7 +52,7 @@ function summarizeToolEvent(toolName, phase, payload) {
   }
 
   switch (toolName) {
-    case 'open_candidate_chat':
+    case 'ensure_candidate_chat_ready':
       return `已进入 ${name || '候选人'} 的聊天会话`;
     case 'open_candidate_resume':
       return `已打开 ${name || '候选人'} 的在线简历`;
@@ -103,7 +108,9 @@ export function createScreeningTools({
 
   const ensureCurrentCandidate = name => {
     if (name !== candidateName) {
-      throw new Error(`当前 agent 只能处理候选人 ${candidateName}，不能处理 ${name}。`);
+      throw new Error(
+        `当前 agent 只能处理候选人 ${candidateName}，不能处理 ${name}。`,
+      );
     }
   };
 
@@ -166,31 +173,60 @@ export function createScreeningTools({
     (toolName, execute) =>
     async (input = {}) => {
       ensureNotAborted();
+      const callSummary = summarizeToolEvent(toolName, 'call', input);
+      log(`[Tool:${toolName}] ${callSummary}`);
       notifyToolCall(toolName, input);
 
       try {
         const output = await execute(input);
         ensureNotAborted();
+        const resultSummary = summarizeToolEvent(toolName, 'result', output ?? {});
+        log(`[Tool:${toolName}] ${resultSummary}`);
         notifyToolResult(toolName, output);
         return output;
       } catch (error) {
-        notifyToolResult(
-          toolName,
-          null,
-          error instanceof Error ? error.message : String(error),
-        );
+        const msg = error instanceof Error ? error.message : String(error);
+        log(`[Tool:${toolName}] 失败: ${msg}`);
+        notifyToolResult(toolName, null, msg);
         throw error;
       }
     };
 
   return {
-    open_candidate_chat: tool({
-      description: '进入指定候选人的聊天会话，只负责打开聊天，不做简历或其他动作。',
+    ensure_candidate_chat_ready: tool({
+      description:
+        '确保当前已经进入指定候选人的聊天会话；如果已在当前聊天页则不重复点击，否则会自行回到消息列表、搜索并进入。',
       inputSchema: z.object({
         name: z.string().describe('候选人姓名'),
       }),
-      execute: wrapTool('open_candidate_chat', async ({ name }) => {
+      execute: wrapTool('ensure_candidate_chat_ready', async ({ name }) => {
         ensureCurrentCandidate(name);
+        const currentState = await isCandidateChatOpen(browserAgent, name, log);
+        let reason = normalizeText(currentState?.reason) || '';
+
+        if (currentState?.ready === true) {
+          setCandidateRecord({
+            chatOpened: true,
+          });
+          return {
+            ok: true,
+            name,
+            ready: true,
+            skipped: true,
+            reason: reason || '当前已经位于目标候选人的聊天会话。',
+          };
+        }
+
+        await ensureSelectableCandidateList(browserAgent, log, {
+          preferUnread: false,
+        });
+        const searchResult = await searchAndSelectCandidate(browserAgent, name, log);
+        if (!searchResult?.ok) {
+          throw new Error(
+            normalizeText(searchResult?.reason) || `无法通过消息列表搜索找到候选人 ${name}。`,
+          );
+        }
+
         const result = await openCandidateChat({
           browserAgent,
           name,
@@ -199,12 +235,18 @@ export function createScreeningTools({
         setCandidateRecord({
           chatOpened: true,
         });
-        return result;
+        return {
+          ...result,
+          ready: true,
+          skipped: false,
+          reason,
+        };
       }),
     }),
 
     open_candidate_resume: tool({
-      description: '在当前候选人聊天会话中打开在线简历，只负责打开，不做提取或关闭。',
+      description:
+        '在当前候选人聊天会话中打开在线简历，只负责打开，不做提取或关闭。',
       inputSchema: z.object({
         name: z.string().describe('候选人姓名'),
       }),
@@ -240,7 +282,9 @@ export function createScreeningTools({
           inspected: true,
           resumeOpened: true,
         });
-        log(`已完成候选人 ${name} 的简历检查，下一步请根据提取结果决定后续动作。`);
+        log(
+          `已完成候选人 ${name} 的简历检查，下一步请根据提取结果决定后续动作。`,
+        );
         return result;
       }),
     }),
@@ -268,18 +312,24 @@ export function createScreeningTools({
       description: '在当前候选人聊天会话里执行“求简历/要简历”动作。',
       inputSchema: z.object({
         name: z.string().describe('候选人姓名'),
-        reason: z.string().optional().describe('一句话说明为什么判定该候选人符合'),
+        reason: z
+          .string()
+          .optional()
+          .describe('一句话说明为什么判定该候选人符合'),
       }),
       execute: wrapTool('request_resume', async ({ name, reason }) => {
         ensureCurrentCandidate(name);
         await ensureCandidateChatReady(browserAgent, name);
+        log(`[AI:aiAct] 准备点击求简历按钮`);
         await browserAgent.aiAct(
-          `返回到名字为“${name}”的聊天会话页面。在聊天区域底部的操作工具条中，优先找到文字为“求简历”的按钮并点击。如果“求简历”不可用，再查找“要简历”按钮。若点击后出现确认弹窗、二次确认按钮或简历请求确认提示，就继续确认，直到成功向该候选人发起求简历。不要误点“换电话”“换微信”“约面试”或“不合适”。`,
+          `返回到名字为”${name}”的聊天会话页面。在聊天区域底部的操作工具条中，优先找到文字为”求简历”的按钮并点击。如果”求简历”不可用，再查找”要简历”按钮。若点击后出现确认弹窗、二次确认按钮或简历请求确认提示，就继续确认，直到成功向该候选人发起求简历。不要误点”换电话””换微信””约面试”或”不合适”。`,
         );
+        log(`[AI:aiAct] 求简历按钮点击完成，等待确认`);
         await wait(1200);
         const requestState = await browserAgent.aiQuery(
-          `现在只观察名字为“${name}”的聊天会话底部操作区和最近消息区域。请判断是否已经成功向该候选人发起“求简历/要简历”。只返回 JSON：{"requested":true|false,"reason":"一句中文依据"}。`,
+          `现在只观察名字为”${name}”的聊天会话底部操作区和最近消息区域。请判断是否已经成功向该候选人发起”求简历/要简历”。只返回 JSON：{“requested”:true|false,”reason”:”一句中文依据”}。`,
         );
+        log(`[AI:aiQuery] 求简历验证结果: ${JSON.stringify(requestState)}`);
         if (requestState?.requested !== true) {
           throw new Error(
             normalizeText(requestState?.reason) || '未能确认已成功发起求简历。',
@@ -315,8 +365,9 @@ export function createScreeningTools({
         await ensureCandidateChatReady(browserAgent, name);
 
         const pinState = await browserAgent.aiQuery(
-          `现在只观察名字为“${name}”的聊天会话页面右侧竖排工具栏中的“置顶当前会话”图标。这个图标像一个向上箭头进入一条横线/托盘，通常位于“收藏”图标下面、“更多”图标上面。请判断它当前是否已经处于置顶选中状态。只返回 JSON：{"alreadyPinned":true|false,"reason":"一句简短中文判断依据"}。如果页面上已经出现“取消置顶”“已置顶”相关明确语义，或者图标明显处于选中/激活态，就返回 true。`,
+          `现在只观察名字为”${name}”的聊天会话页面右侧竖排工具栏中的”置顶当前会话”图标。这个图标像一个向上箭头进入一条横线/托盘，通常位于”收藏”图标下面、”更多”图标上面。请判断它当前是否已经处于置顶选中状态。只返回 JSON：{“alreadyPinned”:true|false,”reason”:”一句简短中文判断依据”}。如果页面上已经出现”取消置顶””已置顶”相关明确语义，或者图标明显处于选中/激活态，就返回 true。`,
         );
+        log(`[AI:aiQuery] 置顶状态检查: ${JSON.stringify(pinState)}`);
 
         if (pinState?.alreadyPinned === true) {
           setCandidateRecord({
@@ -327,23 +378,29 @@ export function createScreeningTools({
             ok: true,
             name,
             alreadyPinned: true,
-            reason: normalizeText(pinState?.reason) || '检测到当前会话已经置顶。',
+            reason:
+              normalizeText(pinState?.reason) || '检测到当前会话已经置顶。',
           };
         }
 
         if (typeof browserAgent?.aiTap === 'function') {
+          log(`[AI:aiTap] 准备点击置顶图标`);
           await browserAgent.aiTap(
-            `名字为“${name}”的聊天会话页面右侧竖排工具栏中的“置顶当前会话”图标。这个图标像一个向上箭头进入一条横线/托盘，位于“收藏”图标下面、“更多”图标上面。只点击这一个图标，不要误点其他按钮。`,
+            `名字为”${name}”的聊天会话页面右侧竖排工具栏中的”置顶当前会话”图标。这个图标像一个向上箭头进入一条横线/托盘，位于”收藏”图标下面、”更多”图标上面。只点击这一个图标，不要误点其他按钮。`,
           );
+          log(`[AI:aiTap] 置顶图标点击完成`);
         } else {
+          log(`[AI:aiAct] 准备点击置顶图标（fallback）`);
           await browserAgent.aiAct(
-            `返回到名字为“${name}”的聊天会话页面。然后只观察聊天区域右侧的竖排工具栏，找到“置顶当前会话”的图标并点击。这个图标的特征是：像一个向上箭头进入一条横线/托盘，位于右侧竖排工具栏中部，通常在“收藏”图标下面、“更多”图标上面。不要误点收藏、更多、关闭简历、在线简历、附件简历或其他按钮。点击成功后停止。`,
+            `返回到名字为”${name}”的聊天会话页面。然后只观察聊天区域右侧的竖排工具栏，找到”置顶当前会话”的图标并点击。这个图标的特征是：像一个向上箭头进入一条横线/托盘，位于右侧竖排工具栏中部，通常在”收藏”图标下面、”更多”图标上面。不要误点收藏、更多、关闭简历、在线简历、附件简历或其他按钮。点击成功后停止。`,
           );
+          log(`[AI:aiAct] 置顶图标点击完成`);
         }
         await wait(1200);
         const pinVerify = await browserAgent.aiQuery(
-          `现在只观察名字为“${name}”的聊天会话页面右侧竖排工具栏中的“置顶当前会话”图标。请判断它现在是否已经处于置顶选中状态。只返回 JSON：{"alreadyPinned":true|false,"reason":"一句简短中文判断依据"}。`,
+          `现在只观察名字为”${name}”的聊天会话页面右侧竖排工具栏中的”置顶当前会话”图标。请判断它现在是否已经处于置顶选中状态。只返回 JSON：{“alreadyPinned”:true|false,”reason”:”一句简短中文判断依据”}。`,
         );
+        log(`[AI:aiQuery] 置顶验证结果: ${JSON.stringify(pinVerify)}`);
         if (pinVerify?.alreadyPinned !== true) {
           throw new Error(
             normalizeText(pinVerify?.reason) || '未能确认当前会话已经置顶。',
@@ -367,62 +424,76 @@ export function createScreeningTools({
       inputSchema: z.object({
         name: z.string().describe('候选人姓名'),
         message: z.string().optional().describe('发送给候选人的消息'),
-        reason: z.string().optional().describe('一句话说明为什么判定该候选人不符合'),
+        reason: z
+          .string()
+          .optional()
+          .describe('一句话说明为什么判定该候选人不符合'),
       }),
-      execute: wrapTool('send_rejection_message', async ({ name, message, reason }) => {
-        ensureCurrentCandidate(name);
-        const finalMessage = String(
-          message || rejectionMessage || DEFAULT_REJECTION_MESSAGE,
-        ).trim();
-        await ensureCandidateChatReady(browserAgent, name);
-        await browserAgent.aiAct(
-          `返回到名字为“${name}”的聊天会话，在输入框中输入“${finalMessage}”，然后发送消息。`,
-        );
-        await wait(1200);
-        const sendState = await browserAgent.aiQuery(
-          `现在只观察名字为“${name}”的聊天会话最近消息区域。请判断刚才发送给候选人的消息“${finalMessage}”是否已经成功出现在会话中。只返回 JSON：{"sent":true|false,"reason":"一句中文依据"}。`,
-        );
-        if (sendState?.sent !== true) {
-          return {
-            ok: false,
+      execute: wrapTool(
+        'send_rejection_message',
+        async ({ name, message, reason }) => {
+          ensureCurrentCandidate(name);
+          const finalMessage = String(
+            message || rejectionMessage || DEFAULT_REJECTION_MESSAGE,
+          ).trim();
+          await ensureCandidateChatReady(browserAgent, name);
+          log(`[AI:aiAct] 准备聚焦输入框`);
+          await browserAgent.aiAct(
+            `在名字为”${name}”的聊天会话中，找到页面最底部的文字输入框（位于”求简历””换电话””换微信””约面试””不合适”等快捷操作按钮的下方，是一个可以打字的长条输入区域，右侧有”发送”按钮）。用鼠标点击该输入框，使其获得焦点、光标在输入框内闪烁。注意不要点击输入框上方的快捷回复短语条。只执行点击聚焦，不要输入文字。`,
+          );
+          log(`[AI:aiAct] 输入框聚焦完成`);
+          await wait(500);
+          log(`[AI:aiAct] 准备输入消息并发送: “${finalMessage}”`);
+          await browserAgent.aiAct(
+            `现在输入框已获得焦点，直接在输入框中输入”${finalMessage}”，然后点击输入框右侧的”发送”按钮发送消息。`,
+          );
+          log(`[AI:aiAct] 输入并发送完成，等待确认`);
+          await wait(1200);
+          const sendState = await browserAgent.aiQuery(
+            `现在只观察名字为”${name}”的聊天会话最近消息区域。请判断刚才发送给候选人的消息”${finalMessage}”是否已经成功出现在会话中。只返回 JSON：{“sent”:true|false,”reason”:”一句中文依据”}。`,
+          );
+          log(`[AI:aiQuery] 发送验证结果: ${JSON.stringify(sendState)}`);
+          if (sendState?.sent !== true) {
+            throw new Error(
+              `发送不匹配消息失败：${normalizeText(sendState?.reason) || '未能确认消息已发送'}`,
+            );
+          }
+          const nextRecord = {
+            ...getCandidateRecord(),
+            candidateId,
             name,
-            sent: false,
-            message: finalMessage,
-            reason: normalizeText(sendState?.reason) || '未能确认不匹配消息已经发送成功。',
+            sentRejectionMessage: true,
+            rejectionReason:
+              normalizeText(reason) ||
+              'Agent 判定该候选人不符合目标候选人特征。',
+            rejectionMessage: finalMessage,
           };
-        }
-        const nextRecord = {
-          ...getCandidateRecord(),
-          candidateId,
-          name,
-          sentRejectionMessage: true,
-          rejectionReason:
-            normalizeText(reason) || 'Agent 判定该候选人不符合目标候选人特征。',
-          rejectionMessage: finalMessage,
-        };
-        candidateRecords.set(candidateId, nextRecord);
-        await persistCandidateRecord(nextRecord);
-        log(`已向候选人 ${name} 发送不匹配消息。`);
-        return {
-          ok: true,
-          name,
-          sent: true,
-          message: finalMessage,
-          reason: normalizeText(sendState?.reason) || '',
-        };
-      }),
+          candidateRecords.set(candidateId, nextRecord);
+          await persistCandidateRecord(nextRecord);
+          log(`已向候选人 ${name} 发送不匹配消息。`);
+          return {
+            ok: true,
+            name,
+            sent: true,
+            message: finalMessage,
+            reason: normalizeText(sendState?.reason) || '',
+          };
+        },
+      ),
     }),
 
     read_chat_context: tool({
-      description: '读取当前候选人聊天会话中的关键信息，例如是否已在聊天页、是否出现求简历按钮、是否有历史消息。',
+      description:
+        '读取当前候选人聊天会话中的关键信息，例如是否已在聊天页、是否出现求简历按钮、是否有历史消息。',
       inputSchema: z.object({
         name: z.string().describe('候选人姓名'),
       }),
       execute: wrapTool('read_chat_context', async ({ name }) => {
         ensureCurrentCandidate(name);
         const context = await browserAgent.aiQuery(
-          `只观察名字为“${name}”的当前聊天会话主视图。读取关键信息，只返回 JSON：{"isChatReady":true|false,"hasResumeButton":true|false,"hasRequestResumeButton":true|false,"hasHistoryMessages":true|false,"summary":"一句中文摘要"}。`,
+          `只观察名字为”${name}”的当前聊天会话主视图。读取关键信息，只返回 JSON：{“isChatReady”:true|false,”hasResumeButton”:true|false,”hasRequestResumeButton”:true|false,”hasHistoryMessages”:true|false,”summary”:”一句中文摘要”}。`,
         );
+        log(`[AI:aiQuery] 聊天上下文: ${JSON.stringify(context)}`);
         return {
           ok: true,
           name,

@@ -161,6 +161,8 @@ export default function TaskDetailPage() {
         await waitForBridgeReady(setStatus);
         const id = await startTask({
           targetProfile: task?.targetProfile || '',
+          jobTitle: task?.jobTitle || '',
+          jobProfileId: task?.jobProfileId || null,
           taskId,
           mode,
           setStatusFn: setStatus,

@@ -16,10 +16,13 @@ export function createInitialTaskState() {
 
 export function createServerState() {
   return {
-    running: false,
     currentTaskProcess: null,
     unreadTaskState: createInitialTaskState(),
   };
+}
+
+export function isRunning(state) {
+  return state.unreadTaskState.running === true;
 }
 
 export function getTaskStateSnapshot(state) {
@@ -44,10 +47,13 @@ export function mergeUnreadTaskState(state, partial) {
   }
 
   if (partial?.latestToolEvent) {
-    state.unreadTaskState.toolTimeline = [
+    const timeline = [
       ...(state.unreadTaskState.toolTimeline || []),
       partial.latestToolEvent,
     ];
+    state.unreadTaskState.toolTimeline = timeline.length > 500
+      ? timeline.slice(-500)
+      : timeline;
   }
 }
 

@@ -122,9 +122,9 @@ export function RunTaskPanel({
 }) {
   const showStatusBanner = Boolean((status && String(status).trim()) || (error && String(error).trim()));
   const statusToneCls = error
-    ? 'border-rose-100 bg-rose-50 text-rose-700'
+    ? 'border-rose-100 bg-rose-50 text-rose-700 dark:border-rose-500/25 dark:bg-rose-500/10 dark:text-rose-200'
     : running
-      ? 'border-brand-100 bg-brand-50 text-brand-700'
+      ? 'border-brand-100 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200'
       : 'border-stone-200 bg-stone-50 text-stone-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300';
 
   return (
@@ -186,7 +186,7 @@ export function RunTaskPanel({
           </span>
         </div>
 
-        {showStatusBanner ? (
+        {showStatusBanner && (error || status) ? (
           <div className={`rounded-[22px] border px-4 py-3 ${statusToneCls}`}>
             <Text className="whitespace-pre-wrap text-[13px] leading-6">
               {error || status}
