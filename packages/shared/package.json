@@ -1,0 +1,11 @@
+{
+  "name": "@boss-agent/shared",
+  "version": "0.1.0",
+  "description": "Shared code between boss-agent extension and server",
+  "private": true,
+  "type": "module",
+  "main": "job-profiles.js",
+  "exports": {
+    ".": "./job-profiles.js"
+  }
+}

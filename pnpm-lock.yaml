@@ -7,25 +7,56 @@ settings:
 importers:
 
   .:
+    devDependencies:
+      pnpm:
+        specifier: ^9.0.0
+        version: 9.15.9
+
+  packages/extension:
     dependencies:
-      '@ai-sdk/openai-compatible':
-        specifier: ^2.0.37
-        version: 2.0.38(zod@4.3.6)
       '@ai-sdk/react':
         specifier: ^3.0.155
         version: 3.0.155(react@19.2.4)(zod@4.3.6)
       '@ant-design/icons':
         specifier: ^6.1.0
         version: 6.1.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@boss-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      antd:
+        specifier: ^6.3.0
+        version: 6.3.5(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      react:
+        specifier: ^19.2.0
+        version: 19.2.4
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.4(react@19.2.4)
+      react-router-dom:
+        specifier: ^7.14.0
+        version: 7.14.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+    devDependencies:
+      '@tailwindcss/vite':
+        specifier: ^4.1.12
+        version: 4.2.2(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1))
+      tailwindcss:
+        specifier: ^4.1.12
+        version: 4.2.2
+      wxt:
+        specifier: ^0.20.20
+        version: 0.20.20(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(jiti@2.6.1)
+
+  packages/server:
+    dependencies:
+      '@ai-sdk/openai-compatible':
+        specifier: ^2.0.37
+        version: 2.0.38(zod@4.3.6)
       '@midscene/web':
         specifier: ^1.6.1
         version: 1.6.2(debug@4.4.3)(playwright@1.59.1)
       ai:
         specifier: ^6.0.142
-        version: 6.0.146(zod@4.3.6)
-      antd:
-        specifier: ^6.3.0
-        version: 6.3.5(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        version: 6.0.153(zod@4.3.6)
       debug:
         specifier: ^4.4.3
         version: 4.4.3
@@ -50,15 +81,6 @@ importers:
       pdfjs-dist:
         specifier: ^5.6.205
         version: 5.6.205
-      react:
-        specifier: ^19.2.0
-        version: 19.2.4
-      react-dom:
-        specifier: ^19.2.0
-        version: 19.2.4(react@19.2.4)
-      react-router-dom:
-        specifier: ^7.14.0
-        version: 7.14.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       xlsx:
         specifier: ^0.18.5
         version: 0.18.5
@@ -66,29 +88,16 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
-      '@tailwindcss/vite':
-        specifier: ^4.1.12
-        version: 4.2.2(vite@8.0.3(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1))
       cross-env:
         specifier: ^10.1.0
         version: 10.1.0
-      tailwindcss:
-        specifier: ^4.1.12
-        version: 4.2.2
-      wxt:
-        specifier: ^0.20.20
-        version: 0.20.20(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(@types/node@25.5.2)(jiti@2.6.1)
+
+  packages/shared: {}
 
 packages:
 
   '@1natsu/wait-element@4.2.0':
     resolution: {integrity: sha512-Om0Q+WE9mNrpY4AwMTvkFiYHv8VM7TML3PvOqXy+w6kAjLjKhGYHYX+305+a6J8RVpds9s7IF2Z5aOPYwULFNw==}
-
-  '@ai-sdk/gateway@3.0.88':
-    resolution: {integrity: sha512-AFoj7xdWAtCQcy0jJ235ENSakYM8D28qBX+rB+/rX4r8qe/LXgl0e5UivOqxAlIM5E9jnQdYxIPuj3XFtGk/yg==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
 
   '@ai-sdk/gateway@3.0.93':
     resolution: {integrity: sha512-8D6C9eEvDq6IgrdlWzpbniahDkoLiieTCrpzH8p/Hw63/0iPnZJ1uZcqxHrDIVDW/+aaGhBXqmx5C7HSd2eMmQ==}
@@ -1261,12 +1270,6 @@ packages:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
 
-  ai@6.0.146:
-    resolution: {integrity: sha512-70DE8k1rR0N3mXxyyfjYAx/FxRln/kQ5ym18lt1ys1eUklcPuoIXGbUBwdfCbmkt6YF3jCDZ5+OgkWieP/NGDw==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
   ai@6.0.153:
     resolution: {integrity: sha512-UlgBe4k0Ja1m1Eufn6FVSsHoF0sc7qwxX35ywJPDogIvBz0pHc+NOmCqiRY904DczNYIuwpZfKBLVz8HXgu3mg==}
     engines: {node: '>=18'}
@@ -1409,6 +1412,7 @@ packages:
   basic-ftp@5.2.0:
     resolution: {integrity: sha512-VoMINM2rqJwJgfdHq6RiUudKt2BV+FY5ZFezP/ypmwayk68+NzzAQy4XXLlqsGD4MCzq3DrmNFD/uUmBJuGoXw==}
     engines: {node: '>=10.0.0'}
+    deprecated: Security vulnerability fixed in 5.2.1, please upgrade
 
   bluebird@3.4.7:
     resolution: {integrity: sha512-iD3898SR7sWVRHbiQv+sHUtHnMvC1o3nW5rAcqnq3uOn07DSAppZYUkIGslDz6gXC7HfunPe7YVBgoEJASPcHA==}
@@ -2794,6 +2798,11 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
+  pnpm@9.15.9:
+    resolution: {integrity: sha512-aARhQYk8ZvrQHAeSMRKOmvuJ74fiaR1p5NQO7iKJiClf1GghgbrlW1hBjDolO95lpQXsfF+UA+zlzDzTfc8lMQ==}
+    engines: {node: '>=18.12'}
+    hasBin: true
+
   portfinder@1.0.38:
     resolution: {integrity: sha512-rEwq/ZHlJIKw++XtLAO8PPuOQA/zaPJOZJ37BVuN97nLpMJeuDVLVGRwbFoBgLudgdTMP2hdRJP++H+8QOA3vg==}
     engines: {node: '>= 10.12'}
@@ -3429,6 +3438,7 @@ packages:
   whatwg-encoding@2.0.0:
     resolution: {integrity: sha512-p41ogyeMUrw3jWclHWTQg1k05DSVXPLcVxRTYsXUk+ZooOCZLcoYgPZ/HL/D/N+uQPOtcp1me1WhBEaX02mhWg==}
     engines: {node: '>=12'}
+    deprecated: Use @exodus/bytes instead for a more spec-conformant and faster implementation
 
   when-exit@2.1.5:
     resolution: {integrity: sha512-VGkKJ564kzt6Ms1dbgPP/yuIoQCrsFAnRbptpC5wOEsDaNsbCB2bnfnaA8i/vRs5tjUSEOtIuvl9/MyVsvQZCg==}
@@ -3578,13 +3588,6 @@ snapshots:
     dependencies:
       defu: 6.1.6
       many-keys-map: 3.0.3
-
-  '@ai-sdk/gateway@3.0.88(zod@4.3.6)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.22(zod@4.3.6)
-      '@vercel/oidc': 3.1.0
-      zod: 4.3.6
 
   '@ai-sdk/gateway@3.0.93(zod@4.3.6)':
     dependencies:
@@ -4012,8 +4015,8 @@ snapshots:
       express-rate-limit: 7.5.1(express@5.2.1)
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 3.24.3
-      zod-to-json-schema: 3.25.2(zod@3.24.3)
+      zod: 3.25.76
+      zod-to-json-schema: 3.25.2(zod@3.25.76)
     transitivePeerDependencies:
       - supports-color
 
@@ -4662,14 +4665,6 @@ snapshots:
   adm-zip@0.5.17: {}
 
   agent-base@7.1.4: {}
-
-  ai@6.0.146(zod@4.3.6):
-    dependencies:
-      '@ai-sdk/gateway': 3.0.88(zod@4.3.6)
-      '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.22(zod@4.3.6)
-      '@opentelemetry/api': 1.9.0
-      zod: 4.3.6
 
   ai@6.0.153(zod@4.3.6):
     dependencies:
@@ -6236,6 +6231,8 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.2
 
+  pnpm@9.15.9: {}
+
   portfinder@1.0.38:
     dependencies:
       async: 3.2.6
@@ -7196,9 +7193,9 @@ snapshots:
       async: 3.2.6
       jszip: 3.10.1
 
-  zod-to-json-schema@3.25.2(zod@3.24.3):
+  zod-to-json-schema@3.25.2(zod@3.25.76):
     dependencies:
-      zod: 3.24.3
+      zod: 3.25.76
 
   zod@3.24.3: {}
 

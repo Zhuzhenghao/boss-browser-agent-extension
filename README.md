@@ -1,245 +1,247 @@
-# Boss Browser Agent Extension
+# Boss Browser Agent - Monorepo 项目
 
-一个基于 Chrome 扩展 + Midscene Bridge + 本地 Node Agent 的 Boss 直聘自动化控制台。
+这是一个 monorepo 项目，包含 Chrome 插件前端和后端服务两个独立的 package。
 
-当前插件侧已经改成 React sidepanel，后面可以继续加菜单、路由和更多 agent 入口。
+## 📦 项目结构
 
-## 当前能力
-
-- React Side Panel 控制台
-- Midscene Bridge 连接你当前桌面 Chrome 标签页
-- 未读消息筛选 Agent
-- 在线简历逐屏复制采集
-- 候选人匹配后自动 `求简历`、`置顶`
-- 不匹配自动发送常用语
-- 每处理完一个候选人，立即落一份 markdown 记录
-
-## 目录说明
-
-- [entrypoints/sidepanel/main.jsx](./entrypoints/sidepanel/main.jsx)
-  React sidepanel 入口，包含菜单和路由
-- [entrypoints/sidepanel/style.css](./entrypoints/sidepanel/style.css)
-  Sidepanel 样式
-- [server/bridge-server.js](./server/bridge-server.js)
-  本地 bridge 服务
-- [agents/unread-screening-agent.js](./agents/unread-screening-agent.js)
-  未读消息筛选 Agent 主流程
-- [candidate-notes](./candidate-notes)
-  候选人 markdown 记录输出目录
-
-## 环境准备
-
-1. 安装依赖
-
-```bash
-npm install
+```
+boss-browser-agent-extension/
+├── packages/
+│   ├── extension/              # Chrome 插件（前端）
+│   │   ├── entrypoints/        # 插件入口
+│   │   ├── wxt.config.js       # WXT 配置
+│   │   └── package.json
+│   │
+│   └── server/                 # 后端服务（可打包成二进制）
+│       ├── src/
+│       │   ├── agents/         # AI Agent
+│       │   ├── server/         # Express 服务器
+│       │   ├── shared/         # 共享工具
+│       │   └── index.js        # 入口
+│       ├── dist/               # 构建产物
+│       └── package.json
+│
+├── pnpm-workspace.yaml         # pnpm workspace 配置
+├── package.json                # 根配置（迁移后会更新）
+└── migrate-project.js          # 迁移脚本
 ```
 
-2. 配置环境变量
+## 🚀 快速开始
 
-macOS / Linux:
+### 1. 执行迁移
 
-```bash
-cp .env.example .env
-```
-
-Windows PowerShell:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-至少填写这些：
+**重要**：迁移前请先提交或备份当前代码！
 
 ```bash
-# 推荐：使用 Vercel AI Gateway
-AI_GATEWAY_API_KEY=your-vercel-ai-gateway-api-key
-AI_GATEWAY_MODEL=openai/gpt-4.1-mini
+# 运行迁移脚本
+node migrate-project.js
+```
 
-# 未配置 AI Gateway 时，系统会回退到 OpenAI-compatible provider
-MIDSCENE_MODEL_API_KEY=your-api-key
-MIDSCENE_MODEL_NAME=doubao-seed-2.0-vision
-MIDSCENE_MODEL_BASE_URL=https://your-openai-compatible-endpoint/v1
-MIDSCENE_MODEL_FAMILY=doubao-vision
+迁移脚本会自动：
+- 创建 `packages/extension` 和 `packages/server` 目录
+- 移动前端文件到 `packages/extension`
+- 移动后端文件到 `packages/server/src`
+- 更新所有导入路径
+- 创建必要的配置文件
+
+### 2. 安装依赖
+
+```bash
+pnpm install
+```
+
+### 3. 开发
+
+```bash
+# 终端 1: 启动后端服务
+pnpm dev:server
+
+# 终端 2: 启动前端开发
+pnpm dev:extension
+```
+
+### 4. 构建
+
+```bash
+# 构建前端插件
+pnpm build:extension
+
+# 构建后端二进制（所有平台）
+cd packages/server
+pnpm build:all
+
+# 或单独构建某个平台
+pnpm build:win      # Windows
+pnpm build:mac      # macOS
+pnpm build:linux    # Linux
+```
+
+## 📝 可用命令
+
+### 根目录命令
+
+```bash
+# 开发
+pnpm dev:extension          # 启动前端开发
+pnpm dev:server             # 启动后端开发
+
+# 构建
+pnpm build:extension        # 构建前端插件
+pnpm build:server           # 构建后端（所有平台）
+```
+
+### 后端命令（在 packages/server 目录）
+
+```bash
+pnpm dev                    # 开发模式
+pnpm start                  # 生产模式
+pnpm build:all              # 构建所有平台
+pnpm build:win              # 构建 Windows
+pnpm build:mac              # 构建 macOS
+pnpm build:linux            # 构建 Linux
+```
+
+### 前端命令（在 packages/extension 目录）
+
+```bash
+pnpm dev                    # 开发模式
+pnpm build                  # 构建插件
+pnpm zip                    # 打包成 zip
+```
+
+## 🔧 配置
+
+### 前端环境变量
+
+创建 `packages/extension/.env`：
+
+```env
+VITE_API_BASE_URL=http://127.0.0.1:3322
+```
+
+### 后端环境变量
+
+创建 `packages/server/.env`：
+
+```env
+# 服务端口
 BRIDGE_DEMO_PORT=3322
+
+# OpenAI API 配置
+OPENAI_API_KEY=your_api_key_here
+OPENAI_BASE_URL=https://api.openai.com/v1
+
+# 调试日志
+DEBUG=midscene:*,boss-agent:*
 ```
 
-## 本地启动
+## 📦 二进制打包
 
-启动本地 bridge 服务：
+后端使用 `@yao-pkg/pkg` 打包成独立的可执行文件：
 
 ```bash
-npm run bridge-demo
+cd packages/server
+
+# 构建所有平台
+pnpm build:all
 ```
 
-服务默认监听：
+构建产物在 `packages/server/dist/`：
+- `boss-agent-server-win.exe` - Windows 可执行文件（约 50-100MB）
+- `boss-agent-server-macos` - macOS 可执行文件
+- `boss-agent-server-linux` - Linux 可执行文件
 
-```text
-http://127.0.0.1:3322
-```
-
-常用接口：
-
-- `GET /api/health`
-- `GET /api/bridge-status`
-- `POST /api/screen-unread/stream`
-- `POST /api/screen-unread/stop`
-- `GET /api/screen-unread/state`
-
-## 构建插件
-
-生产构建：
+### 运行二进制
 
 ```bash
-npm run build
+# Windows
+./packages/server/dist/boss-agent-server-win.exe
+
+# macOS/Linux
+chmod +x ./packages/server/dist/boss-agent-server-macos
+./packages/server/dist/boss-agent-server-macos
 ```
 
-构建产物目录：
+## 🎯 使用场景
 
-```text
-.output/chrome-mv3
-```
+### 开发模式
 
-如果你要本地开发，也可以直接跑：
+适合本地开发和调试：
 
 ```bash
-npm run dev
+# 终端 1
+pnpm dev:server
+
+# 终端 2
+pnpm dev:extension
 ```
 
-## 加载插件
+### 生产部署
 
-1. 打开 Chrome 扩展管理页：`chrome://extensions`
-2. 开启“开发者模式”
-3. 点击“加载已解压的扩展程序”
-4. 选择目录：
-
-```text
-.output/chrome-mv3
-```
-
-5. 点击扩展图标，打开 side panel
-
-## 使用前提
-
-执行前需要同时满足：
-
-- Chrome 已安装 Midscene 扩展
-- Midscene 扩展已进入 `Bridge Mode Listening`
-- Boss 页面已经打开
-- 目标 Boss 页面已经切到前台
-- Midscene 扩展已经连接到当前 tab
-
-推荐顺序：
-
-1. 先打开 Boss 页面
-2. 确认 Midscene 扩展处于 `Bridge Mode Listening`
-3. 在 Midscene 扩展里连接当前 tab
-4. 再打开本插件 sidepanel 点击执行
-
-## 当前运行方式
-
-1. 启动本地 bridge 服务
+**前端**：构建后上传到 Chrome Web Store 或直接分发
 
 ```bash
-npm run bridge-demo
+pnpm build:extension
+pnpm --filter @boss-agent/extension zip
 ```
 
-2. 构建并重新加载插件
+**后端**：使用二进制文件部署
 
 ```bash
-npm run build
+cd packages/server
+pnpm build:win  # 或其他平台
+# 将 dist/ 目录中的可执行文件部署到服务器
 ```
 
-然后在 Chrome 里重新加载 `.output/chrome-mv3`
+## 📚 技术栈
 
-3. 打开 Boss 沟通页并保持前台
+### 前端
+- React 19
+- Ant Design
+- WXT (Chrome Extension Framework)
+- Vite + Tailwind CSS
 
-```text
-https://www.zhipin.com/web/chat/index
-```
+### 后端
+- Node.js 18+
+- Express
+- AI SDK (OpenAI Compatible)
+- Midscene (Browser Automation)
+- @yao-pkg/pkg (Binary Packager)
 
-4. 打开插件 sidepanel
+## 🔍 故障排除
 
-5. 在 `未读筛选` 页面输入：
+### 迁移后导入路径错误
 
-- 目标候选人特征
-- 不匹配回复语
+迁移脚本会自动更新导入路径，如果仍有问题：
+1. 检查 `packages/server/src/index.js` 的导入路径
+2. 确保相对路径正确
 
-6. 点击：
-
-```text
-执行未读消息筛选 Agent
-```
-
-## 处理结果
-
-每处理完一个候选人，会立即写一份 markdown 到：
-
-```text
-candidate-notes/YYYY-MM-DD/姓名.md
-```
-
-内容包括：
-
-- 文件名
-- 结论
-- 是否符合
-- 原因
-- 不符合原因
-- 简历摘要
-- 关键简历信息 JSON
-
-## 常见问题
-
-### 1. 点击执行时报错：`no tab is connected`
-
-这不是“没有 Chrome 标签页”，而是：
-
-- Midscene 已连接到扩展
-- 但当前没有绑定到一个可操作的网页 tab
-
-处理方式：
-
-1. 把 Boss 页面切到前台
-2. 确认 Midscene 扩展还在 `Bridge Mode Listening`
-3. 在 Midscene 扩展里重新连接当前 tab
-4. 再点执行
-
-### 2. `3322` 端口被占用
-
-先查占用：
-
-macOS / Linux:
+### 端口被占用
 
 ```bash
-lsof -nP -iTCP:3322 -sTCP:LISTEN
-```
-
-Windows PowerShell:
-
-```powershell
+# Windows
 Get-NetTCPConnection -LocalPort 3322 -State Listen
-Get-Process -Id (Get-NetTCPConnection -LocalPort 3322 -State Listen).OwningProcess
+Stop-Process -Id <OwningProcess> -Force
+
+# Linux/Mac
+lsof -nP -iTCP:3322 -sTCP:LISTEN
+kill -9 <PID>
 ```
 
-结束旧进程后再启动，或者换端口：
+### pkg 打包失败
 
-```bash
-BRIDGE_DEMO_PORT=3333 npm run bridge-demo
-```
+确保：
+1. 已安装依赖：`pnpm install`
+2. Node.js 版本 >= 18
+3. 有足够的磁盘空间（打包后文件约 50-100MB）
 
-### 3. 修改了代码但插件没生效
+## 📖 更多文档
 
-需要重新构建并重新加载扩展：
+- [完整迁移指南](./MIGRATION_GUIDE.md)
+- [Monorepo 设置详解](./MONOREPO_SETUP.md)
+- [前端 README](./packages/extension/README.md)
+- [后端 README](./packages/server/README.md)
 
-```bash
-npm run build
-```
+## 📄 许可证
 
-然后在 Chrome 扩展页点“重新加载”。
-
-## 参考文档
-
-- Midscene Bridge Mode: https://midscenejs.com/zh/bridge-mode.html
-- Midscene Chrome Bridge Agent API: https://midscenejs.com/zh/web-api-reference.html#chrome-bridge-agent
-- Vercel AI SDK: https://ai-sdk.dev/
+MIT

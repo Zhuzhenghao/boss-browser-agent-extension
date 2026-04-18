@@ -9,7 +9,13 @@
       "Bash(node --check server/job-profiles-store.js)",
       "Bash(node --check agents/services/resume-service.js)",
       "Bash(node -e \"const m = require.resolve\\('ai'\\); const path = require\\('path'\\); console.log\\(path.dirname\\(m\\)\\)\")",
-      "WebFetch(domain:minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com)"
+      "WebFetch(domain:minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm -r exec node -e \"import\\('@boss-agent/shared'\\).then\\(m => console.log\\('OK:', Object.keys\\(m\\).join\\(', '\\)\\)\\)\")",
+      "Bash(timeout 10 pnpm --filter @boss-agent/server dev)",
+      "Bash(timeout 8 pnpm --filter @boss-agent/server dev)",
+      "Bash(pnpm --filter @boss-agent/extension build)",
+      "Bash(pnpm build:win)"
     ]
   }
 }

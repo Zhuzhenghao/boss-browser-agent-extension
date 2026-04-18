@@ -1,39 +1,15 @@
 {
-  "name": "boss-browser-agent-extension",
+  "name": "boss-browser-agent-monorepo",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "scripts": {
-    "dev": "wxt",
-    "build": "wxt build",
-    "zip": "wxt zip",
-    "bridge": "cross-env DEBUG=midscene:*,boss-agent:* node server/bridge-server.js"
-  },
-  "dependencies": {
-    "@ai-sdk/openai-compatible": "^2.0.37",
-    "@ai-sdk/react": "^3.0.155",
-    "@ant-design/icons": "^6.1.0",
-    "@midscene/web": "^1.6.1",
-    "ai": "^6.0.142",
-    "antd": "^6.3.0",
-    "debug": "^4.4.3",
-    "dotenv": "^16.6.1",
-    "express": "^5.2.1",
-    "fast-xml-parser": "^5.5.11",
-    "jszip": "^3.10.1",
-    "mammoth": "^1.12.0",
-    "multer": "^2.1.1",
-    "pdfjs-dist": "^5.6.205",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "react-router-dom": "^7.14.0",
-    "xlsx": "^0.18.5",
-    "zod": "^4.3.6"
+    "dev:extension": "pnpm --filter @boss-agent/extension dev",
+    "dev:server": "pnpm --filter @boss-agent/server dev",
+    "build:extension": "pnpm --filter @boss-agent/extension build",
+    "build:server": "pnpm --filter @boss-agent/server build",
+    "build": "pnpm build:extension && pnpm build:server"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.1.12",
-    "cross-env": "^10.1.0",
-    "tailwindcss": "^4.1.12",
-    "wxt": "^0.20.20"
+    "pnpm": "^9.0.0"
   }
 }
