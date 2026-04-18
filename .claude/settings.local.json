@@ -15,7 +15,9 @@
       "Bash(timeout 10 pnpm --filter @boss-agent/server dev)",
       "Bash(timeout 8 pnpm --filter @boss-agent/server dev)",
       "Bash(pnpm --filter @boss-agent/extension build)",
-      "Bash(pnpm build:win)"
+      "Bash(pnpm build:win)",
+      "Bash(pnpm -r publish --access public)",
+      "Bash(pnpm -r publish --access public --no-git-checks)"
     ]
   }
 }

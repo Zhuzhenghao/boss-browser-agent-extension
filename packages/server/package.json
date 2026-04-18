@@ -1,5 +1,5 @@
 {
-  "name": "@boss-agent/server",
+  "name": "@boss-ai/server",
   "version": "0.1.0",
   "description": "Boss Browser Agent Server - AI-powered candidate screening service",
   "type": "module",

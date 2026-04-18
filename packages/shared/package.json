@@ -1,5 +1,5 @@
 {
-  "name": "@boss-agent/shared",
+  "name": "@boss-ai/shared",
   "version": "0.1.0",
   "description": "Shared code between boss-agent extension and server",
   "private": true,
