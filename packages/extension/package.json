@@ -1,8 +1,7 @@
 {
   "name": "@boss-ai/extension",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Boss Browser Agent Chrome Extension",
-  "private": true,
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -10,7 +9,6 @@
     "zip": "wxt zip"
   },
   "dependencies": {
-    "@boss-ai/shared": "workspace:*",
     "@ai-sdk/react": "^3.0.155",
     "@ant-design/icons": "^6.1.0",
     "antd": "^6.3.0",

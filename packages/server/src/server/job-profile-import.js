@@ -8,7 +8,7 @@ import { z } from 'zod';
 import {
   createEmptyJobProfile,
   getJobProfileMissingFields,
-} from '../../../shared/job-profiles.js';
+} from '../../shared/job-profiles.js';
 import { createTextLanguageModel } from '../agents/services/language-model.js';
 
 const parser = new XMLParser({

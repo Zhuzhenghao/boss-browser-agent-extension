@@ -1,14 +1,14 @@
 {
   "name": "@boss-ai/server",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Boss Browser Agent Server - AI-powered candidate screening service",
   "type": "module",
   "main": "src/index.js",
   "bin": {
-    "boss-agent-server": "src/index.js"
+    "boss-ai-server": "src/index.js"
   },
   "scripts": {
-    "dev": "cross-env DEBUG=midscene:*,boss-agent:* node src/index.js",
+    "dev": "cross-env DEBUG=midscene:*,boss-ai:* node src/index.js",
     "start": "node src/index.js"
   },
   "keywords": [

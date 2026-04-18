@@ -22,7 +22,7 @@ import {
 } from './controllers/screening-controller.js';
 import { createServerState } from './state.js';
 import { startScheduler, stopScheduler } from '../agents/services/job-profile-scheduler.js';
-import { buildTargetProfileFromJobProfile } from '../../../shared/job-profiles.js';
+import { buildTargetProfileFromJobProfile } from '../../shared/job-profiles.js';
 
 dotenv.config();
 

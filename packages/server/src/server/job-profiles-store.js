@@ -5,7 +5,7 @@ import {
   getDefaultJobProfiles,
   normalizeJobProfile,
   normalizeJobProfiles,
-} from '../../../shared/job-profiles.js';
+} from '../../shared/job-profiles.js';
 
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
