@@ -1,0 +1,7 @@
+node_modules
+.env
+.env.example
+candidate-notes
+midscene_run
+screening-data
+*.log
