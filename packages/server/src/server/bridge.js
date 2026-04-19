@@ -1,4 +1,13 @@
-import { AgentOverChromeBridge } from '@midscene/web/bridge-mode';
+let bridgeAgentLoader = null;
+
+async function getAgentOverChromeBridge() {
+  if (!bridgeAgentLoader) {
+    bridgeAgentLoader = import('@midscene/web/bridge-mode')
+      .then(module => module.AgentOverChromeBridge);
+  }
+
+  return bridgeAgentLoader;
+}
 
 export function normalizeBridgeError(error) {
   const message = error instanceof Error ? error.message : String(error);
@@ -23,6 +32,7 @@ export function isAbortError(error) {
 }
 
 export async function checkBridgeReady() {
+  const AgentOverChromeBridge = await getAgentOverChromeBridge();
   const agent = new AgentOverChromeBridge({
     allowRemoteAccess: false,
     closeNewTabsAfterDisconnect: false,

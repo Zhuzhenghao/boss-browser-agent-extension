@@ -23,7 +23,7 @@ export function handleGetModelConfig(res) {
   sendJson(res, 200, { ok: true, data: config });
 }
 
-export function handleSaveModelConfig(req, res) {
+export async function handleSaveModelConfig(req, res) {
   const { config: body } = req.body || {};
   if (!body || typeof body !== 'object') {
     sendJson(res, 400, { ok: false, error: 'config 必须是对象' });
@@ -35,6 +35,6 @@ export function handleSaveModelConfig(req, res) {
     return;
   }
   const saved = saveModelConfig(body);
-  applyModelConfigToMidscene(saved);
+  await applyModelConfigToMidscene(saved);
   sendJson(res, 200, { ok: true, data: saved });
 }

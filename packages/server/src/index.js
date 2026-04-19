@@ -4,30 +4,11 @@ import multer from 'multer';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { normalizeBridgeError } from './server/bridge.js';
-import {
-  recordFatalBridgeError,
-  handleBridgeStatus,
-  handleDeleteJobProfile,
-  handleDeleteScreeningTask,
-  handleHealth,
-  handleImportJobProfile,
-  handleListJobProfiles,
-  handleListScreeningTasks,
-  handleReadJobProfile,
-  handleReadScreeningTask,
-  handleSaveJobProfile,
-  handleScreenUnreadStart,
-  handleScreenUnreadState,
-  handleScreenUnreadStop,
-  handleScreenUnreadSubscribeByTaskId,
-} from './server/controllers/screening-controller.js';
-import { handleGetModelConfig, handleSaveModelConfig } from './server/controllers/model-config-controller.js';
 import { createServerState } from './server/state.js';
 import { startScheduler, stopScheduler } from './agents/services/job-profile-scheduler.js';
 import { buildTargetProfileFromJobProfile } from './shared/job-profiles.js';
 import { getModelConfig } from './server/model-config-store.js';
-import { applyModelConfigToMidscene } from './server/midscene-model-config.js';
+import { applyModelConfigEnv, applyModelConfigToMidscene } from './server/midscene-model-config.js';
 import { getMidsceneRunDirName, getRuntimeRoot } from './server/runtime-paths.js';
 
 dotenv.config();
@@ -38,6 +19,10 @@ const host = '127.0.0.1';
 let activeServer = null;
 let activeServerState = null;
 let shutdownRegistered = false;
+let shutdownPromise = null;
+let screeningControllerLoader = null;
+let modelConfigControllerLoader = null;
+let bridgeLoader = null;
 
 function renderStartupBanner({ serverUrl, dataDir }) {
   const lines = [
@@ -57,17 +42,42 @@ function renderStartupBanner({ serverUrl, dataDir }) {
   ];
 }
 
+async function loadScreeningController() {
+  if (!screeningControllerLoader) {
+    screeningControllerLoader = import('./server/controllers/screening-controller.js');
+  }
+
+  return screeningControllerLoader;
+}
+
+async function loadModelConfigController() {
+  if (!modelConfigControllerLoader) {
+    modelConfigControllerLoader = import('./server/controllers/model-config-controller.js');
+  }
+
+  return modelConfigControllerLoader;
+}
+
+async function loadBridgeModule() {
+  if (!bridgeLoader) {
+    bridgeLoader = import('./server/bridge.js');
+  }
+
+  return bridgeLoader;
+}
+
 // 从数据库加载模型配置到环境变量，供 Midscene 使用
 function syncModelEnvFromDb() {
   try {
     const config = getModelConfig();
     process.env.MIDSCENE_RUN_DIR = getMidsceneRunDirName();
-    applyModelConfigToMidscene(config);
+    applyModelConfigEnv(config);
+    return config;
   } catch {
     // 忽略，env vars 已有 dotenv 加载的默认值
+    return null;
   }
 }
-syncModelEnvFromDb();
 
 function createUploadMiddleware() {
   return multer({
@@ -79,8 +89,78 @@ function createUploadMiddleware() {
   });
 }
 
+function createAsyncRoute(handler) {
+  return (req, res, next) => {
+    Promise.resolve(handler(req, res, next)).catch(next);
+  };
+}
+
+function terminateCurrentTaskProcess(serverState, reason = '服务正在关闭') {
+  const child = serverState?.currentTaskProcess;
+  if (!child || child.killed) {
+    return;
+  }
+
+  try {
+    child.send?.({
+      type: 'abort-task',
+      reason,
+    });
+  } catch {
+    // ignore ipc errors during shutdown
+  }
+
+  setTimeout(() => {
+    if (!child.killed) {
+      try {
+        child.kill('SIGTERM');
+      } catch {
+        // ignore kill errors during shutdown
+      }
+    }
+  }, 1500).unref?.();
+}
+
+async function shutdownServer(exitCode = 0) {
+  if (shutdownPromise) {
+    return shutdownPromise;
+  }
+
+  shutdownPromise = (async () => {
+    stopScheduler();
+
+    if (activeServerState) {
+      terminateCurrentTaskProcess(activeServerState);
+    }
+
+    if (activeServer) {
+      await new Promise(resolve => {
+        activeServer.close(() => resolve());
+      });
+    }
+
+    activeServer = null;
+    activeServerState = null;
+  })();
+
+  const forceExitTimer = setTimeout(() => {
+    process.exit(exitCode === 0 ? 1 : exitCode);
+  }, 5000);
+  forceExitTimer.unref?.();
+
+  try {
+    await shutdownPromise;
+    clearTimeout(forceExitTimer);
+    process.exit(exitCode);
+  } catch {
+    clearTimeout(forceExitTimer);
+    process.exit(exitCode === 0 ? 1 : exitCode);
+  }
+}
+
 function createSchedulerTaskStarter(serverState) {
   return async profile => {
+    const { handleScreenUnreadStart } = await loadScreeningController();
     console.log(`[Scheduler] Creating auto-inspection task for: ${profile.title}`);
 
     const targetProfile = buildTargetProfileFromJobProfile(profile);
@@ -140,51 +220,94 @@ function createApp(serverState) {
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  app.post('/api/screen-unread/start', (req, res) =>
-    handleScreenUnreadStart(req, res, serverState));
-  app.get('/api/screen-unread/subscribe/:taskId', (req, res) =>
-    handleScreenUnreadSubscribeByTaskId(res, serverState, req.params.taskId));
-  app.post('/api/screen-unread/stop', (req, res) =>
-    handleScreenUnreadStop(res, serverState));
-  app.get('/api/screen-unread/state', (req, res) =>
-    handleScreenUnreadState(res, serverState));
+  app.post('/api/screen-unread/start', createAsyncRoute(async (req, res) => {
+    const { handleScreenUnreadStart } = await loadScreeningController();
+    return handleScreenUnreadStart(req, res, serverState);
+  }));
+  app.get('/api/screen-unread/subscribe/:taskId', createAsyncRoute(async (req, res) => {
+    const { handleScreenUnreadSubscribeByTaskId } = await loadScreeningController();
+    return handleScreenUnreadSubscribeByTaskId(res, serverState, req.params.taskId);
+  }));
+  app.post('/api/screen-unread/stop', createAsyncRoute(async (req, res) => {
+    const { handleScreenUnreadStop } = await loadScreeningController();
+    return handleScreenUnreadStop(res, serverState);
+  }));
+  app.get('/api/screen-unread/state', createAsyncRoute(async (req, res) => {
+    const { handleScreenUnreadState } = await loadScreeningController();
+    return handleScreenUnreadState(res, serverState);
+  }));
 
-  app.get('/api/screening-tasks', (req, res) =>
-    handleListScreeningTasks(
+  app.get('/api/screening-tasks', createAsyncRoute(async (req, res) => {
+    const { handleListScreeningTasks } = await loadScreeningController();
+    return handleListScreeningTasks(
       res,
       String(req.query.status || '').trim(),
       String(req.query.jobProfileId || '').trim(),
-    ));
-  app.get('/api/screening-tasks/:taskId', (req, res) =>
-    handleReadScreeningTask(res, serverState, req.params.taskId));
-  app.delete('/api/screening-tasks/:taskId', (req, res) =>
-    handleDeleteScreeningTask(res, serverState, req.params.taskId));
+    );
+  }));
+  app.get('/api/screening-tasks/:taskId', createAsyncRoute(async (req, res) => {
+    const { handleReadScreeningTask } = await loadScreeningController();
+    return handleReadScreeningTask(res, serverState, req.params.taskId);
+  }));
+  app.delete('/api/screening-tasks/:taskId', createAsyncRoute(async (req, res) => {
+    const { handleDeleteScreeningTask } = await loadScreeningController();
+    return handleDeleteScreeningTask(res, serverState, req.params.taskId);
+  }));
 
-  app.get('/api/job-profiles', (req, res) =>
-    handleListJobProfiles(res));
-  app.post('/api/job-profiles', (req, res) =>
-    handleSaveJobProfile(req, res, ''));
-  app.get('/api/job-profiles/:profileId', (req, res) =>
-    handleReadJobProfile(res, req.params.profileId));
-  app.put('/api/job-profiles/:profileId', (req, res) =>
-    handleSaveJobProfile(req, res, req.params.profileId));
-  app.delete('/api/job-profiles/:profileId', (req, res) =>
-    handleDeleteJobProfile(res, req.params.profileId));
-  app.post('/api/job-profiles/import', upload.array('files'), (req, res) =>
-    handleImportJobProfile(req, res));
+  app.get('/api/job-profiles', createAsyncRoute(async (req, res) => {
+    const { handleListJobProfiles } = await loadScreeningController();
+    return handleListJobProfiles(res);
+  }));
+  app.post('/api/job-profiles', createAsyncRoute(async (req, res) => {
+    const { handleSaveJobProfile } = await loadScreeningController();
+    return handleSaveJobProfile(req, res, '');
+  }));
+  app.get('/api/job-profiles/:profileId', createAsyncRoute(async (req, res) => {
+    const { handleReadJobProfile } = await loadScreeningController();
+    return handleReadJobProfile(res, req.params.profileId);
+  }));
+  app.put('/api/job-profiles/:profileId', createAsyncRoute(async (req, res) => {
+    const { handleSaveJobProfile } = await loadScreeningController();
+    return handleSaveJobProfile(req, res, req.params.profileId);
+  }));
+  app.delete('/api/job-profiles/:profileId', createAsyncRoute(async (req, res) => {
+    const { handleDeleteJobProfile } = await loadScreeningController();
+    return handleDeleteJobProfile(res, req.params.profileId);
+  }));
+  app.post('/api/job-profiles/import', upload.array('files'), createAsyncRoute(async (req, res) => {
+    const { handleImportJobProfile } = await loadScreeningController();
+    return handleImportJobProfile(req, res);
+  }));
 
-  app.get('/api/model-config', (req, res) =>
-    handleGetModelConfig(res));
-  app.put('/api/model-config', (req, res) =>
-    handleSaveModelConfig(req, res));
+  app.get('/api/model-config', createAsyncRoute(async (req, res) => {
+    const { handleGetModelConfig } = await loadModelConfigController();
+    return handleGetModelConfig(res);
+  }));
+  app.put('/api/model-config', createAsyncRoute(async (req, res) => {
+    const { handleSaveModelConfig } = await loadModelConfigController();
+    return handleSaveModelConfig(req, res);
+  }));
 
-  app.get('/api/health', (req, res) =>
-    handleHealth(res, serverState));
-  app.get('/api/bridge-status', (req, res) =>
-    handleBridgeStatus(res));
+  app.get('/api/health', createAsyncRoute(async (req, res) => {
+    const { handleHealth } = await loadScreeningController();
+    return handleHealth(res, serverState);
+  }));
+  app.get('/api/bridge-status', createAsyncRoute(async (req, res) => {
+    const { handleBridgeStatus } = await loadScreeningController();
+    return handleBridgeStatus(res);
+  }));
 
   app.use((req, res) => {
     res.status(404).json({ ok: false, error: 'Not found' });
+  });
+
+  app.use((error, req, res, next) => {
+    console.error(error);
+    if (res.headersSent) {
+      next(error);
+      return;
+    }
+    res.status(500).json({ ok: false, error: error instanceof Error ? error.message : String(error) });
   });
 
   return app;
@@ -197,19 +320,22 @@ function registerShutdownHandlers() {
 
   process.on('unhandledRejection', error => {
     if (activeServerState) {
-      recordFatalBridgeError(activeServerState, error);
+      void loadScreeningController()
+        .then(({ recordFatalBridgeError }) => recordFatalBridgeError(activeServerState, error))
+        .catch(() => console.error(error));
     }
   });
 
   process.on('uncaughtException', error => {
     if (activeServerState) {
-      recordFatalBridgeError(activeServerState, error);
+      void loadScreeningController()
+        .then(({ recordFatalBridgeError }) => recordFatalBridgeError(activeServerState, error))
+        .catch(() => console.error(error));
     }
   });
 
   const shutdown = () => {
-    stopScheduler();
-    activeServer?.close();
+    void shutdownServer(0);
   };
 
   process.on('SIGTERM', shutdown);
@@ -222,7 +348,7 @@ export async function startServer() {
     return activeServer;
   }
 
-  syncModelEnvFromDb();
+  const modelConfig = syncModelEnvFromDb();
 
   const port = Number(process.env.BRIDGE_DEMO_PORT || 3322);
   const serverState = createServerState();
@@ -240,6 +366,12 @@ export async function startServer() {
       console.log(
         '先确保 Midscene Chrome 扩展已开启 Bridge Mode Listening，并把要操作的 Chrome 标签页切到最前。',
       );
+
+      if (modelConfig) {
+        void applyModelConfigToMidscene(modelConfig).catch(() => {
+          // Midscene override 失败不阻塞服务启动，运行时仍可依赖 env 配置
+        });
+      }
 
       startScheduler(createSchedulerTaskStarter(serverState), 120);
       resolve(instance);
