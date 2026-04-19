@@ -33,7 +33,10 @@ boss-ai-server
 
 ### 3. 安装 Midscene Chrome 扩展
 
-本工具依赖 [Midscene](https://github.com/nicedoc/midscene) 进行浏览器自动化操作，请先安装 Midscene Chrome 扩展。
+本工具依赖 [Midscene](https://midscenejs.com/) 进行浏览器自动化操作。安装方式：
+
+1. 前往 [Chrome Web Store - Midscene](https://chromewebstore.google.com/detail/midscene/gbldofcpkknbggpkmbdaefngejllnief) 安装
+2. 或者从 [Midscene Releases](https://github.com/nicedoc/midscene/releases) 下载 `.crx` 文件手动安装
 
 ### 4. 模型配置
 
@@ -44,7 +47,12 @@ boss-ai-server
 - **模型名称** — 对话模型名称
 - **模型家族** — 模型家族标识
 
-当前仅支持 OpenAI 兼容接口。
+当前仅支持 OpenAI 兼容接口。推荐使用以下大模型平台：
+
+| 平台 | Base URL | 说明 |
+|------|----------|------|
+| [无问芯穹](https://cloud.infini-ai.com/) | `https://cloud.infini-ai.com/maas/v1` | 注册后在控制台创建 API Key 即可使用 |
+| [阿里云百炼](https://bailian.console.aliyun.com/) | `https://dashscope.aliyuncs.com/compatible-mode/v1` | 注册阿里云账号，开通百炼服务，创建 API Key |
 
 ## 开发指南
 
