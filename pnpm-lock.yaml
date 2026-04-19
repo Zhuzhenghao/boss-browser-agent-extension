@@ -85,9 +85,6 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
-      '@vercel/ncc':
-        specifier: ^0.38.4
-        version: 0.38.4
       cross-env:
         specifier: ^10.1.0
         version: 10.1.0
@@ -1219,10 +1216,6 @@ packages:
 
   '@ui-tars/shared@1.2.3':
     resolution: {integrity: sha512-6FgmBq21M8zB1OemH24+YbMX/H8l/2e2FlBcrVmvc2UqRPBy69UCzZ4dQCe8JIwA4FstHDCmv6a6CrZ/NeNa3g==}
-
-  '@vercel/ncc@0.38.4':
-    resolution: {integrity: sha512-8LwjnlP39s08C08J5NstzriPvW1SP8Zfpp1BvC2sI35kPeZnHfxVkCwu4/+Wodgnd60UtT1n8K8zw+Mp7J9JmQ==}
-    hasBin: true
 
   '@vercel/oidc@3.1.0':
     resolution: {integrity: sha512-Fw28YZpRnA3cAHHDlkt7xQHiJ0fcL+NRcIqsocZQUSmbzeIKRpwttJjik5ZGanXP+vlA4SbTg+AbA3bP363l+w==}
@@ -4624,8 +4617,6 @@ snapshots:
       lodash.isnumber: 3.0.3
 
   '@ui-tars/shared@1.2.3': {}
-
-  '@vercel/ncc@0.38.4': {}
 
   '@vercel/oidc@3.1.0': {}
 
