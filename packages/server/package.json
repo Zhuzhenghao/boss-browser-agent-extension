@@ -1,0 +1,51 @@
+{
+  "name": "@boss-ai/server",
+  "version": "0.1.4",
+  "description": "Boss Browser Agent Server - AI-powered candidate screening service",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "boss-ai-server": "./bin/boss-ai-server.js"
+  },
+  "scripts": {
+    "dev": "cross-env DEBUG=midscene:*,boss-ai:* node src/index.js",
+    "start": "node dist/index.js",
+    "build": "node scripts/build.mjs",
+    "prepack": "npm run build"
+  },
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "keywords": [
+    "boss",
+    "recruitment",
+    "ai",
+    "screening",
+    "automation",
+    "chrome-extension"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@ai-sdk/openai-compatible": "^2.0.37",
+    "@midscene/web": "^1.6.1",
+    "ai": "^6.0.142",
+    "debug": "^4.4.3",
+    "dotenv": "^16.6.1",
+    "express": "^5.2.1",
+    "fast-xml-parser": "^5.5.11",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.12.0",
+    "multer": "^2.1.1",
+    "pdfjs-dist": "^5.6.205",
+    "xlsx": "^0.18.5",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "boss-browser-agent-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:extension": "pnpm --filter @boss-ai/extension dev",
+    "dev:server": "pnpm --filter @boss-ai/server dev",
+    "build:extension": "pnpm --filter @boss-ai/extension build",
+    "build:server": "pnpm --filter @boss-ai/server build",
+    "build": "pnpm build:extension && pnpm build:server"
+  },
+  "devDependencies": {
+    "pnpm": "^9.0.0"
+  }
+}
