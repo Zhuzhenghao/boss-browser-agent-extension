@@ -107,19 +107,19 @@ boss-ai-server
 
 ## GitHub Actions
 
-仓库内置了扩展 zip 打包工作流：
+仓库通过 tag 触发两个工作流：
 
-- Workflow: `Build Extension Zip`
-- 文件: [`.github/workflows/extension-zip.yml`](./.github/workflows/extension-zip.yml)
+- **Release**：构建 Chrome 插件 zip 并创建 GitHub Release
+- **Publish**：构建并发布到 npm
 
-使用方式：
+### 下载 Chrome 插件
 
-1. 进入 GitHub 仓库的 `Actions`
-2. 打开 `Build Extension Zip`
-3. 点击 `Run workflow`
-4. 任务完成后，在该次运行的 `Artifacts` 中下载 `boss-ai-extension-chrome-zip`
+前往 [Releases](https://github.com/Zhuzhenghao/boss-browser-agent-extension/releases) 页面，下载最新版本的 `.zip` 文件，然后：
 
-这个 workflow 也会在 `main` 分支上与扩展相关文件变更时自动执行，并产出可下载的 zip artifact。
+1. 解压 zip 文件
+2. 打开 Chrome，进入 `chrome://extensions/`
+3. 开启右上角「开发者模式」
+4. 点击「加载已解压的扩展程序」，选择解压后的文件夹
 
 ## 运行数据
 
