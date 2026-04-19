@@ -5,6 +5,25 @@
 - `packages/extension`：Chrome 插件前端
 - `packages/server`：本地服务与 AI Agent
 
+## 快速开始
+
+先准备：
+
+- Node.js `18+`
+- `pnpm`
+- Chrome
+- Midscene Chrome 扩展
+
+Windows / macOS 都建议先安装最新版 Node.js LTS：
+
+- 官网：<https://nodejs.org/>
+
+安装 `pnpm`：
+
+```bash
+npm install -g pnpm
+```
+
 ## 项目结构
 
 ```text
@@ -37,6 +56,39 @@ pnpm --filter @boss-ai/server dev
 pnpm --filter @boss-ai/extension dev
 ```
 
+打包 Chrome 插件 zip：
+
+```bash
+pnpm --filter @boss-ai/extension zip
+```
+
+输出位置：
+
+- `packages/extension/.output/*.zip`
+- `packages/extension/.output/chrome-mv3`
+
+其中：
+
+- `.zip` 适合分发和归档
+- `chrome-mv3` 适合在 Chrome 的“加载已解压的扩展程序”里直接安装
+
+## 模型配置
+
+当前只支持 OpenAI 兼容接口。
+
+在插件设置页里必须配置：
+
+- API Key
+- Base URL
+- 对话模型名称
+- 模型家族
+
+否则巡检任务里的 Midscene `aiQuery` / `aiAct` 会失败。
+
+更具体的填写说明见：
+
+- [packages/server/README.md](./packages/server/README.md)
+
 ## 后端 CLI
 
 构建：
@@ -49,20 +101,25 @@ pnpm --filter @boss-ai/server build
 
 ```bash
 pnpm --filter @boss-ai/server pack
-npm install -g .\boss-ai-server-0.1.3.tgz
+npm install -g .\boss-ai-server-0.1.4.tgz
 boss-ai-server
 ```
 
-## 模型配置
+## GitHub Actions
 
-当前只支持 OpenAI 兼容接口，必须配置：
+仓库内置了扩展 zip 打包工作流：
 
-- API Key
-- Base URL
-- 对话模型名称
-- 模型家族
+- Workflow: `Build Extension Zip`
+- 文件: [`.github/workflows/extension-zip.yml`](./.github/workflows/extension-zip.yml)
 
-未配置完整时，巡检任务不会正常调用 Midscene 的 `aiQuery` / `aiAct`。
+使用方式：
+
+1. 进入 GitHub 仓库的 `Actions`
+2. 打开 `Build Extension Zip`
+3. 点击 `Run workflow`
+4. 任务完成后，在该次运行的 `Artifacts` 中下载 `boss-ai-extension-chrome-zip`
+
+这个 workflow 也会在 `main` 分支上与扩展相关文件变更时自动执行，并产出可下载的 zip artifact。
 
 ## 运行数据
 
@@ -87,7 +144,7 @@ Stop-Process -Id <OwningProcess> -Force
 
 ```powershell
 npm uninstall -g @boss-ai/server
-npm install -g .\boss-ai-server-0.1.3.tgz
+npm install -g .\boss-ai-server-0.1.4.tgz
 ```
 
 ## 子包文档

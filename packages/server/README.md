@@ -1,184 +1,228 @@
-# Boss Browser Agent Server
+# Boss AI Server
 
-AI 驱动的候选人筛选后端服务，搭配 Chrome 插件使用。
+Boss Browser Agent 的本地服务端，负责：
 
-## 安装
+- 提供 `http://127.0.0.1:3322` API
+- 连接 Midscene Chrome Bridge
+- 执行候选人巡检 Agent
 
-### 方式 1: npm 全局安装（推荐）
+## 前置要求
 
-```bash
-npm install -g @boss-agent/server
-```
+### 1. 安装 Node.js
 
-安装后直接运行：
+要求：
 
-```bash
-boss-agent-server
-```
+- Node.js `18+`
 
-服务将在 `http://127.0.0.1:3322` 启动。
+推荐直接安装最新版 LTS。
 
-### 方式 2: Docker
+Windows：
 
-```bash
-docker run -p 3322:3322 \
-  -e OPENAI_API_KEY=your_api_key \
-  -e OPENAI_BASE_URL=https://api.openai.com/v1 \
-  zhuzhenghao/boss-agent-server
-```
+1. 打开 [https://nodejs.org/](https://nodejs.org/)
+2. 下载 Windows LTS 安装包
+3. 安装后重新打开终端
 
-或使用 docker-compose：
+macOS：
 
-```yaml
-services:
-  boss-agent-server:
-    image: zhuzhenghao/boss-agent-server
-    ports:
-      - "3322:3322"
-    environment:
-      - OPENAI_API_KEY=your_api_key
-      - OPENAI_BASE_URL=https://api.openai.com/v1
-```
-
-### 方式 3: 源码运行
+1. 打开 [https://nodejs.org/](https://nodejs.org/)
+2. 下载 macOS LTS 安装包  
+   或使用 Homebrew：
 
 ```bash
-git clone <repo>
-cd packages/server
-npm install
-npm start
+brew install node
 ```
 
-## 环境变量
-
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
-| `BRIDGE_DEMO_PORT` | 服务端口 | `3322` |
-| `OPENAI_API_KEY` | OpenAI API 密钥 | - |
-| `OPENAI_BASE_URL` | API 地址 | `https://api.openai.com/v1` |
-| `DEBUG` | 调试日志 | - |
-
-创建 `.env` 文件：
-
-```env
-BRIDGE_DEMO_PORT=3322
-OPENAI_API_KEY=your_api_key_here
-OPENAI_BASE_URL=https://api.openai.com/v1
-DEBUG=midscene:*,boss-agent:*
-```
-
-## API 文档
-
-### 健康检查
+安装完成后确认：
 
 ```bash
-GET /api/health
+node -v
+npm -v
 ```
 
-### 职位画像管理
+### 2. 安装 pnpm
 
 ```bash
-# 获取所有职位画像
-GET /api/job-profiles
-
-# 获取单个职位画像
-GET /api/job-profiles/:profileId
-
-# 创建职位画像
-POST /api/job-profiles
-
-# 更新职位画像
-PUT /api/job-profiles/:profileId
-
-# 删除职位画像
-DELETE /api/job-profiles/:profileId
-
-# 导入职位画像（支持 Word/PDF/Excel）
-POST /api/job-profiles/import
+npm install -g pnpm
 ```
 
-### 筛选任务
+确认：
 
 ```bash
-# 启动筛选任务
-POST /api/screen-unread/start
-
-# 订阅任务进度 (SSE)
-GET /api/screen-unread/subscribe/:taskId
-
-# 停止筛选任务
-POST /api/screen-unread/stop
-
-# 获取任务状态
-GET /api/screen-unread/state
-
-# 获取所有任务
-GET /api/screening-tasks
-
-# 获取单个任务
-GET /api/screening-tasks/:taskId
-
-# 删除任务
-DELETE /api/screening-tasks/:taskId
+pnpm -v
 ```
 
-## 项目结构
+## 本地运行
 
-```
-packages/server/
-├── src/
-│   ├── agents/           # AI Agent 逻辑
-│   │   ├── services/    # 服务层
-│   │   └── tools/       # 工具函数
-│   ├── server/          # Express 服务器
-│   │   ├── controllers/ # 控制器
-│   │   └── ...
-│   ├── shared/          # 共享工具
-│   └── index.js         # 入口文件
-├── .env.example
-└── package.json
-```
-
-## 技术栈
-
-- **Node.js 18+** - 运行时
-- **Express** - Web 框架
-- **AI SDK** - AI 集成（OpenAI 兼容）
-- **Midscene** - 浏览器自动化
-
-## 故障排除
-
-### 端口被占用
+在仓库根目录执行：
 
 ```bash
-# Windows
-netstat -ano | findstr :3322
-
-# Linux/Mac
-lsof -i :3322
+pnpm install
+pnpm --filter @boss-ai/server dev
 ```
 
-### 服务启动失败
+启动后服务会监听：
 
-确保：
-1. Node.js 版本 >= 18
-2. 环境变量配置正确
-3. 端口 3322 未被占用
+```text
+http://127.0.0.1:3322
+```
 
-## 发布到 npm
+同时需要：
+
+- Chrome 已打开 Boss 直聘页面
+- Midscene Chrome 扩展已启用
+- Midscene 已开启 Bridge Mode Listening
+- 要操作的标签页已切到前台
+
+## 本地 CLI 运行
+
+构建并本地安装测试包：
 
 ```bash
-cd packages/server
-npm login
-npm publish --access public
+pnpm --filter @boss-ai/server build
+pnpm --filter @boss-ai/server pack
 ```
 
-注意：需要先在 npm 上创建 `@boss-agent` scope 的组织或使用个人 scope。
+Windows PowerShell：
 
-## 开发
+```powershell
+npm install -g .\boss-ai-server-0.1.4.tgz
+boss-ai-server
+```
+
+macOS / Linux：
 
 ```bash
-cd packages/server
-npm install
-npm run dev
+npm install -g ./boss-ai-server-0.1.4.tgz
+boss-ai-server
 ```
+
+## 模型配置
+
+当前只支持 `OpenAI 兼容接口`。
+
+必须在插件设置页填写这四项：
+
+1. `API Key`
+2. `Base URL`
+3. `对话模型名称`
+4. `模型家族`
+
+缺少任意一项时，Midscene 的 `aiQuery` / `aiAct` 无法正常工作，巡检任务会失败。
+
+### 推荐填写方式
+
+`API Key`
+
+- 你的模型平台密钥
+
+`Base URL`
+
+- OpenAI 兼容接口地址
+- 例子：
+  - `https://api.openai.com/v1`
+  - `https://cloud.infini-ai.com/maas/v1`
+
+`对话模型名称`
+
+- 你实际要调用的模型 ID
+- 例子：
+  - `gpt-4o`
+  - `glm-4.6v`
+  - `qwen-plus`
+
+`模型家族`
+
+- 这是 Midscene 做视觉理解时需要的模型家族标识
+- 必须和你使用的模型能力匹配
+- 例子：
+  - `gpt-5`
+  - `glm-v`
+  - `qwen3-vl`
+  - `qwen2.5-vl`
+  - `gemini`
+
+如果你不确定，就按你接入的平台实际支持的视觉模型家族来选；不要只填模型名，不填模型家族。
+
+## 运行数据目录
+
+运行时数据默认写入用户数据目录，不写入包目录。
+
+Windows：
+
+```text
+%LOCALAPPDATA%\BossAI\server
+```
+
+macOS：
+
+```text
+~/Library/Application Support/BossAI/server
+```
+
+Linux：
+
+```text
+~/.local/share/boss-ai-server
+```
+
+也可以通过环境变量自定义：
+
+```bash
+BOSS_AI_DATA_DIR=/your/custom/path
+```
+
+## 常用命令
+
+开发：
+
+```bash
+pnpm --filter @boss-ai/server dev
+```
+
+构建：
+
+```bash
+pnpm --filter @boss-ai/server build
+```
+
+本地打包：
+
+```bash
+pnpm --filter @boss-ai/server pack
+```
+
+## 常见问题
+
+### 1. 端口 3322 被占用
+
+Windows：
+
+```powershell
+Get-NetTCPConnection -LocalPort 3322 -State Listen
+Stop-Process -Id <OwningProcess> -Force
+```
+
+macOS：
+
+```bash
+lsof -nP -iTCP:3322 -sTCP:LISTEN
+kill -9 <PID>
+```
+
+### 2. CLI 安装升级时报 SQLite 被占用
+
+先停止正在运行的 `boss-ai-server`，再重新安装：
+
+```powershell
+npm uninstall -g @boss-ai/server
+npm install -g .\boss-ai-server-0.1.4.tgz
+```
+
+### 3. Midscene 调用失败
+
+优先检查：
+
+1. 模型配置四项是否都已填写
+2. Boss 页面标签是否在前台
+3. Midscene Bridge 是否已连接到当前标签页
+4. 当前调用的模型是否真的支持视觉理解
